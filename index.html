@@ -311,12 +311,13 @@
                         { id: '2', name: 'Freelance' },
                         { id: '100', name: 'Vale Refeição' } // Categoria padrão
                     ],
+                    // ### MODIFICADO 1: Adiciona cores padrão
                     expense: [
-                        { id: '0', name: 'Sem Categoria' }, // Categoria padrão
-                        { id: '1', name: 'Alimentação' },
-                        { id: '2', name: 'Transporte' },
-                        { id: '3', name: 'Moradia' },
-                        { id: '4', name: 'Lazer' },
+                        { id: '0', name: 'Sem Categoria', color: '#9ca3af' }, // Categoria padrão
+                        { id: '1', name: 'Alimentação', color: '#ef4444' },
+                        { id: '2', name: 'Transporte', color: '#f97316' },
+                        { id: '3', name: 'Moradia', color: '#eab308' },
+                        { id: '4', name: 'Lazer', color: '#84cc16' },
                     ]
                 },
                  mealVoucherBalance: 0
@@ -355,7 +356,7 @@
                             this.data.categories.income.push({ id: '100', name: 'Vale Refeição' });
                         }
                         if (!this.data.categories.expense.some(c => c.id === '0')) {
-                            this.data.categories.expense.unshift({ id: '0', name: 'Sem Categoria' });
+                            this.data.categories.expense.unshift({ id: '0', name: 'Sem Categoria', color: '#9ca3af' });
                         }
                         
                         // Migração e validação de dados
@@ -379,8 +380,23 @@
                         });
                          this.data.cards.forEach(c => { c.id = String(c.id); });
                          this.data.goals.forEach(g => { g.id = String(g.id); });
+                         
+                         // ### MODIFICADO 2: Migração de cores para dados antigos
+                         const defaultColors = {
+                             '0': '#9ca3af',
+                             '1': '#ef4444',
+                             '2': '#f97316',
+                             '3': '#eab308',
+                             '4': '#84cc16'
+                         };
+                         this.data.categories.expense.forEach(c => { 
+                             c.id = String(c.id);
+                             if (!c.color) {
+                                 // Se a categoria não tiver cor (dados antigos), atribui uma
+                                 c.color = defaultColors[c.id] || '#84cc16'; // Padrão verde para novas
+                             }
+                         });
                          this.data.categories.income.forEach(c => { c.id = String(c.id); });
-                         this.data.categories.expense.forEach(c => { c.id = String(c.id); });
 
                         
                         this.calculateMealVoucherBalance();
@@ -622,6 +638,7 @@
                 this.renderExpenseChart(currentMonth, currentYear);
             },
 
+            // ### MODIFICADO 5: Atualiza renderização do gráfico
             renderExpenseChart(month, year) {
                 const chartContainer = document.getElementById('chart-container');
                 const chartCanvas = document.getElementById('expense-chart');
@@ -656,13 +673,26 @@
                     return;
                 }
 
+                // --- INÍCIO DA LÓGICA DE CORES DINÂMICAS ---
+                const chartLabels = Object.keys(expenseByCat);
+                const chartData = Object.values(expenseByCat);
+
+                // Mapeia os nomes das categorias (labels) para suas cores salvas
+                const chartColors = chartLabels.map(labelName => {
+                    const category = this.data.categories.expense.find(c => c.name === labelName);
+                    // Retorna a cor da categoria ou uma cor cinza padrão
+                    return category?.color || '#9ca3af'; 
+                });
+                // --- FIM DA LÓGICA DE CORES ---
+
+
                 window.expenseChart = new Chart(newChartCanvas, {
                     type: 'doughnut',
                     data: {
-                        labels: Object.keys(expenseByCat),
+                        labels: chartLabels, // Modificado
                         datasets: [{
-                            data: Object.values(expenseByCat),
-                            backgroundColor: ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'],
+                            data: chartData, // Modificado
+                            backgroundColor: chartColors, // Modificado
                             borderWidth: 0,
                         }]
                     },
@@ -672,7 +702,7 @@
                         plugins: {
                             legend: {
                                 position: 'bottom',
-                                 labels: {
+                                labels: {
                                     color: document.body.classList.contains('dark') ? '#cbd5e1' : '#475569',
                                 }
                             }
@@ -680,19 +710,20 @@
                     }
                 });
             },
-            
+
             getGoalHTML(goal) {
-                const progress = (goal.target > 0) ? Math.min(100, (goal.saved / goal.target) * 100) : 0; 
+                const progress = (goal.target > 0) ? Math.min(100, (goal.saved / goal.target) * 100) : 0;
+                
                 return `
-                    <div class="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg">
-                        <div class="flex justify-between items-center mb-1">
-                            <span class="font-semibold text-sm">${goal.name}</span>
-                            <span class="text-xs font-medium">${this.formatCurrency(goal.saved)} / ${this.formatCurrency(goal.target)}</span>
-                        </div>
-                        <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
-                            <div class="bg-blue-500 h-2.5 rounded-full" style="width: ${progress}%"></div>
-                        </div>
-                    </div>`;
+                <div class="bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="font-semibold text-sm">${goal.name}</span>
+                        <span class="text-xs font-medium">${this.formatCurrency(goal.saved)} / ${this.formatCurrency(goal.target)}</span>
+                    </div>
+                    <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
+                        <div class="bg-blue-500 h-2.5 rounded-full" style="width: ${progress}%"></div>
+                    </div>
+                </div>`;
             },
 
             // Métodos de ajuda (helpers)
@@ -700,72 +731,54 @@
                 if (typeof value !== 'number') value = 0;
                 return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
             },
-            
+
             autoFormatCurrency(input) {
                 let rawValue = input.value;
                 let isNegative = rawValue.startsWith('-');
-                let digitsOnly = rawValue.replace(/\D/g, '');
-
-                if (digitsOnly === '') {
+                
+                let value = rawValue.replace(/\D/g, '');
+                if (value === '') {
                     input.value = '';
                     return;
                 }
                 
-                let numericValue = parseInt(digitsOnly, 10);
-                if (isNaN(numericValue)) numericValue = 0;
-                
-                let floatValue = numericValue / 100;
-                if (isNegative) floatValue = -floatValue;
+                value = (parseInt(value, 10) / 100).toLocaleString('pt-BR', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
 
-                 let start = input.selectionStart;
-                 let originalLength = input.value.length;
-                 
-                 input.value = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(floatValue);
-                 
-                 let newLength = input.value.length;
-                 let newStart = start + (newLength - originalLength);
-                 
-                 if (originalLength < 3 && newLength > 3) newStart += 3; 
-                 
-                 input.setSelectionRange(newStart, newStart);
+                input.value = (isNegative ? '-' : '') + 'R$ ' + value;
+            },
+
+            parseCurrency(value) {
+                if (typeof value !== 'string') return 0;
+                return parseFloat(value.replace(/R\$\s?/, '').replace(/\./g, '').replace(',', '.')) || 0;
             },
             
-            parseCurrency(value) {
-                 if (typeof value !== 'string' || value === '') return 0;
-                 const negative = value.includes('-');
-                 const numberString = value.replace(/[R$\s.]/g, '').replace(',', '.'); 
-                 let number = parseFloat(numberString);
-                 if (isNaN(number)) return 0;
-                 return negative ? -Math.abs(number) : Math.abs(number);
-             },
-
             getCategoryById(type, id) {
-                 if (!this.data.categories[type] || !id) return null; 
                 return this.data.categories[type].find(c => c.id === id);
             },
             
-            getTargetDateForRecurring(originalDateStr, targetMonth, targetYear) {
-                 const [origYear, origMonth, origDay] = originalDateStr.split('-').map(Number);
-                 const lastDayOfTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
-                 const targetDay = Math.min(origDay, lastDayOfTargetMonth);
-                 const formattedMonth = (targetMonth + 1).toString().padStart(2, '0');
-                 const formattedDay = targetDay.toString().padStart(2, '0');
-                 return `${targetYear}-${formattedMonth}-${formattedDay}`;
+            getCardById(id) {
+                return this.data.cards.find(c => c.id === id);
+            },
+            
+            // Corrige data para o fuso UTC (evita bugs de "dia anterior")
+            getUTCDate(dateString) {
+                const date = new Date(dateString + 'T00:00:00'); // Assume 00:00 no fuso local
+                return new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
             },
 
-            addMonths(isoDateString, monthsToAdd) {
-                const [year, month, day] = isoDateString.split('-').map(Number);
-                const date = new Date(Date.UTC(year, month - 1, day)); 
-                
-                let targetMonth = date.getUTCMonth() + monthsToAdd;
-                let targetYear = date.getUTCFullYear() + Math.floor(targetMonth / 12);
-                targetMonth = targetMonth % 12;
-                 if (targetMonth < 0) targetMonth += 12; 
-                
-                 const lastDayOfTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
-                 const targetDay = Math.min(day, lastDayOfTargetMonth);
-                 
-                 const finalDate = new Date(Date.UTC(targetYear, targetMonth, targetDay));
+             // Retorna YYYY-MM-DD
+            getISODate(date) {
+                return date.toISOString().split('T')[0];
+            },
+            
+            // Calcula a próxima data de vencimento
+            getNextDueDate(day, month, year) {
+                const lastDayOfTargetMonth = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+                const targetDay = Math.min(day, lastDayOfTargetMonth);
+                const finalDate = new Date(Date.UTC(year, month, targetDay));
                 return finalDate.toISOString().split('T')[0];
             },
 
@@ -781,16 +794,21 @@
                     modal.classList.remove('flex');
                     modal.removeEventListener('click', handleOutsideClick);
                 };
-                const handleOutsideClick = (e) => { if (e.target.id === 'modal') closeModal(); };
+                
+                const handleOutsideClick = (e) => {
+                    if (e.target.id === 'modal') closeModal();
+                };
+
                 modal.addEventListener('click', handleOutsideClick);
                 modal.querySelectorAll('.close-modal-btn').forEach(btn => btn.addEventListener('click', closeModal));
+                
                 lucide.createIcons();
             },
             
             getNewId() {
                 return Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 9);
             },
-
+            
             // CORREÇÃO: Função para validar data YYYY-MM-DD
             isValidDate(dateString) {
                 const [year, month, day] = dateString.split('-').map(Number);
@@ -800,130 +818,119 @@
                        date.getUTCMonth() === month - 1 &&
                        date.getUTCDate() === day;
             },
-            
+
             // =================================================================================
             // Seção: Lançamentos (Transactions)
             // =================================================================================
+            
             renderTransactions() {
-                 const savedPrefs = JSON.parse(sessionStorage.getItem('fin-filter-prefs'));
-                 
-                 this.updateFilterCategories();
-                 
+                const savedPrefs = JSON.parse(sessionStorage.getItem('fin-filter-prefs'));
+                this.updateFilterCategories();
+                
                  if(savedPrefs) {
-                     document.getElementById('filter-period').value = savedPrefs.period || 'month';
-                     document.getElementById('filter-type').value = savedPrefs.type || 'all';
-                     document.getElementById('filter-category').value = savedPrefs.category || 'all';
-                     document.getElementById('sort-transactions').value = savedPrefs.sort || 'date-desc';
+                    document.getElementById('filter-period').value = savedPrefs.period || 'month';
+                    document.getElementById('filter-type').value = savedPrefs.type || 'all';
+                    document.getElementById('filter-category').value = savedPrefs.category || 'all';
+                    document.getElementById('sort-transactions').value = savedPrefs.sort || 'date-desc';
                  }
                 
                 const listEl = document.getElementById('transactions-list');
-                const transactions = this.getFilteredTransactions();
-                const searchTerm = document.getElementById('search-transactions').value.toLowerCase();
+                const filteredTransactions = this.getFilteredTransactions();
 
-                if(transactions.length === 0) {
+                if (filteredTransactions.length === 0) {
                     listEl.innerHTML = `<p class="text-center text-sm text-slate-500 dark:text-slate-400 py-8">Nenhum lançamento encontrado.</p>`;
                     return;
                 }
                 
-                const highlightText = (text, highlight) => {
-                    if (!highlight) return text;
-                    // Escapa caracteres especiais para a regex
-                    const escapedHighlight = highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    const regex = new RegExp(`(${escapedHighlight})`, 'gi');
+                const searchTerm = document.getElementById('search-transactions').value.toLowerCase();
+                const highlightText = (text, term) => {
+                    if (!term) return text;
+                    const regex = new RegExp(`(${term})`, 'gi');
                     return text.replace(regex, '<span class="search-highlight">$1</span>');
                 };
 
-                // MELHORIA FUTURA: Se houver muitas transações (>1000), 
-                // implementar paginação ou virtual scrolling aqui para melhorar performance.
-                listEl.innerHTML = transactions
-                    .map(t => {
-                        const category = this.getCategoryById(t.type, t.categoryId);
-                        const isIncome = t.type === 'income';
-                        const isPaid = t.paid === true;
-                        const isFixed = t.isFixed === true;
-                        const isGeneratedFixed = isFixed && t.fixedSourceId && t.fixedSourceId !== t.id; 
-                        
-                        let details = `${(category?.name || 'Sem categoria')} - ${new Date(t.date).toLocaleDateString('pt-BR', {timeZone: 'UTC'})}`;
-                        
-                        if (t.paymentMethod === 'card' && t.cardId) {
-                            const card = this.data.cards.find(c => c.id === t.cardId);
-                            details += ` 💳 ${card?.name || ''}`;
-                            if(t.installments) details += ` (${t.installments.current}/${t.installments.total})`;
-                        } else if (t.paymentMethod === 'meal_voucher') {
-                            details += ` <i data-lucide="utensils" class="w-3 h-3 text-yellow-500 inline-block"></i> VR`;
+                listEl.innerHTML = filteredTransactions.map(t => {
+                    const isIncome = t.type === 'income';
+                    const isExpense = t.type === 'expense';
+                    const isPaid = isExpense && t.paid;
+                    const isFixed = t.isFixed;
+                    const isGeneratedFixed = isFixed && t.fixedSourceId !== t.id;
+                    const category = this.getCategoryById(t.type, t.categoryId);
+                    
+                    let dateStr = 'Data Inválida';
+                    if (this.isValidDate(t.date)) {
+                        const dateObj = this.getUTCDate(t.date);
+                        dateStr = dateObj.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+                    }
+
+                    let details = `${dateStr} | ${category ? category.name : 'Sem Categoria'}`;
+                    
+                    if (isExpense) {
+                        if (t.paymentMethod === 'meal_voucher') {
+                            details += ' (VR)';
+                        } else if (t.cardId) {
+                            const card = this.getCardById(t.cardId);
+                            details += ` (${card ? card.name : 'Cartão'})`;
+                            if (t.installments) {
+                                details += ` ${t.installments.current}/${t.installments.total}`;
+                            }
                         }
+                    }
 
-                        const paidButtonHTML = !isIncome ? `
-                            <button 
-                                onclick="event.stopPropagation(); App.togglePaidStatus('${t.id}')" 
-                                class="paid-toggle-btn text-xs font-semibold py-1 px-2 rounded-full flex items-center gap-1 ${isPaid ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500'}">
-                                <i data-lucide="${isPaid ? 'check-circle' : 'circle'}" class="w-4 h-4"></i>
-                                <span>${isPaid ? 'Pago' : 'Pagar'}</span>
-                            </button>
-                        ` : '';
+                    const paidButtonHTML = isExpense ? `
+                        <button 
+                            onclick="App.toggleTransactionPaid('${t.id}')" 
+                            class="paid-toggle-btn text-xs font-semibold py-1 px-3 rounded-lg flex items-center gap-1 ${isPaid ? 'bg-emerald-500 text-white hover:bg-emerald-600' : 'bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500'}">
+                            <i data-lucide="${isPaid ? 'check-circle' : 'circle'}" class="w-4 h-4"></i>
+                            <span>${isPaid ? 'Pago' : 'Pagar'}</span>
+                        </button>
+                    ` : '';
+                    
+                    const fixedIconHTML = isFixed ? `<i data-lucide="repeat" class="w-3 h-3 ${isGeneratedFixed ? 'text-gray-400' : 'text-blue-500'} ml-1 inline-block" title="${isGeneratedFixed ? 'Lançamento Fixo (Gerado)' : 'Lançamento Fixo (Original)'}"></i>` : '';
 
-                        const fixedIconHTML = isFixed ? `<i data-lucide="repeat" class="w-3 h-3 ${isGeneratedFixed ? 'text-gray-400' : 'text-blue-500'} ml-1 inline-block" title="${isGeneratedFixed ? 'Lançamento Fixo (Gerado)' : 'Lançamento Fixo (Original)'}"></i>` : '';
-
-                        return `
-                            <div class="transaction-item flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg ${isPaid ? 'transaction-paid' : ''}">
-                                <div class="flex-1 min-w-0 mr-2 cursor-pointer" onclick="App.showTransactionModal('${t.id}')">
-                                    <p class="font-semibold truncate">${highlightText(t.description, searchTerm)}${fixedIconHTML}</p>
-                                    <p class="text-xs text-slate-500 dark:text-slate-400 truncate details-text">${details}</p>
-                                </div>
-                                <div class="flex items-center gap-2 flex-shrink-0"> 
-                                     ${paidButtonHTML}
-                                    <p class="font-bold text-right amount-value ${isIncome ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">
-                                        ${isIncome ? '+' : '-'} ${this.formatCurrency(t.amount)}
-                                    </p>
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
+                    return `
+                    <div class="transaction-item flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg ${isPaid ? 'transaction-paid' : ''}">
+                        <div class="flex-1 min-w-0 mr-2 cursor-pointer" onclick="App.showTransactionModal('${t.id}')">
+                            <p class="font-semibold truncate">${highlightText(t.description, searchTerm)}${fixedIconHTML}</p>
+                            <p class="text-xs text-slate-500 dark:text-slate-400 truncate details-text">${details}</p>
+                        </div>
+                        <div class="flex items-center gap-2 flex-shrink-0">
+                            ${paidButtonHTML}
+                            <p class="font-bold text-right amount-value ${isIncome ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}">
+                                ${isIncome ? '+' : '-'} ${this.formatCurrency(t.amount)}
+                            </p>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+                
                 lucide.createIcons();
             },
             
-            togglePaidStatus(id) {
-                const transaction = this.data.transactions.find(t => t.id === id);
-                if(transaction && transaction.type === 'expense') {
-                    transaction.paid = !transaction.paid;
-                    this.saveData();
-                }
-            },
-            
             updateFilterCategories() {
-                 const select = document.getElementById('filter-category');
-                 const currentVal = select.value;
-                 const transactionType = document.getElementById('filter-type').value;
-                 
-                 let categoriesToShow = [];
-                 if (transactionType === 'income') {
-                     categoriesToShow = [...this.data.categories.income];
-                 } else if (transactionType === 'expense') {
-                     categoriesToShow = [...this.data.categories.expense];
-                 } else {
-                      categoriesToShow = [...this.data.categories.expense, ...this.data.categories.income];
-                 }
-                 
-                 categoriesToShow.sort((a, b) => a.name.localeCompare(b.name));
-
-                 select.innerHTML = '<option value="all">Todas Categorias</option>';
-                 categoriesToShow.forEach(cat => {
-                     if(transactionType === 'expense' && cat.id === '100') return;
-                     if(transactionType === 'income' && cat.id === '0') return;
-                     
-                     select.innerHTML += `<option value="${cat.id}">${cat.name}</option>`;
-                 });
-
-                 if (categoriesToShow.some(c => c.id === currentVal)) {
-                     select.value = currentVal;
-                 } else {
-                     const savedPrefs = JSON.parse(sessionStorage.getItem('fin-filter-prefs'));
-                     if(savedPrefs && savedPrefs.type === transactionType && categoriesToShow.some(c => c.id === savedPrefs.category)) {
-                         select.value = savedPrefs.category;
-                     } else {
-                         select.value = 'all';
-                     }
-                 }
+                const typeFilter = document.getElementById('filter-type').value;
+                const catSelect = document.getElementById('filter-category');
+                const currentCat = catSelect.value;
+                
+                let categories = [];
+                if (typeFilter === 'all') {
+                    categories = [...this.data.categories.income, ...this.data.categories.expense];
+                } else {
+                    categories = this.data.categories[typeFilter];
+                }
+                
+                categories = categories.filter(c => c.id !== '0' && c.id !== '100'); // Remove padrões
+                categories.sort((a, b) => a.name.localeCompare(b.name));
+                
+                catSelect.innerHTML = '<option value="all">Todas Categorias</option>';
+                catSelect.innerHTML += '<option value="0">Sem Categoria</option>';
+                if(typeFilter === 'all' || typeFilter === 'income') {
+                     catSelect.innerHTML += '<option value="100">Vale Refeição</option>';
+                }
+                
+                catSelect.innerHTML += categories.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+                
+                catSelect.value = currentCat;
             },
 
             getFilteredTransactions() {
@@ -933,24 +940,25 @@
                 const categoryId = document.getElementById('filter-category').value;
                 const searchTerm = document.getElementById('search-transactions').value.toLowerCase();
                 const sortOption = document.getElementById('sort-transactions').value;
-                
-                const now = new Date();
-                const currentMonth = now.getMonth();
-                const currentYear = now.getFullYear();
 
-                if (period === 'month') {
+                if (period === 'month' || period === 'last_month') {
+                    const now = new Date();
+                    let month = now.getMonth();
+                    let year = now.getFullYear();
+                    
+                    if (period === 'last_month') {
+                        if (month === 0) {
+                            month = 11;
+                            year--;
+                        } else {
+                            month--;
+                        }
+                    }
+
                     transactions = transactions.filter(t => {
                          const date = new Date(t.date);
                          if (isNaN(date.getTime())) return false; 
-                        return date.getUTCMonth() === currentMonth && date.getUTCFullYear() === currentYear;
-                    });
-                } else if (period === 'last_month') {
-                    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-                    const year = currentMonth === 0 ? currentYear - 1 : currentYear;
-                     transactions = transactions.filter(t => {
-                         const date = new Date(t.date);
-                         if (isNaN(date.getTime())) return false; 
-                        return date.getUTCMonth() === lastMonth && date.getUTCFullYear() === year;
+                         return date.getUTCMonth() === month && date.getUTCFullYear() === year;
                     });
                 }
                 
@@ -965,27 +973,26 @@
                 if (searchTerm) {
                     transactions = transactions.filter(t => t.description.toLowerCase().includes(searchTerm));
                 }
-                
+
                 transactions.sort((a, b) => {
-                     // Trata datas inválidas na ordenação
-                     const dateA = new Date(a.date);
-                     const dateB = new Date(b.date);
-                     if (isNaN(dateA.getTime())) return 1;
-                     if (isNaN(dateB.getTime())) return -1;
-                     
-                     switch(sortOption) {
-                         case 'date-asc': return dateA - dateB;
-                         case 'amount-desc': return b.amount - a.amount;
-                         case 'amount-asc': return a.amount - b.amount;
-                         case 'date-desc':
-                         default:
-                             return dateB - dateA;
-                     }
+                    // Trata datas inválidas na ordenação
+                    const dateA = new Date(a.date);
+                    const dateB = new Date(b.date);
+                    if (isNaN(dateA.getTime())) return 1;
+                    if (isNaN(dateB.getTime())) return -1;
+                    
+                    switch(sortOption) {
+                        case 'date-asc': return dateA - dateB;
+                        case 'amount-desc': return b.amount - a.amount;
+                        case 'amount-asc': return a.amount - b.amount;
+                        case 'date-desc':
+                        default: return dateB - dateA;
+                    }
                 });
 
                 return transactions;
             },
-            
+
             showTransactionModal(id) {
                 const transaction = id ? this.data.transactions.find(t => t.id === id) : null;
                 const isEditing = !!transaction;
@@ -993,7 +1000,7 @@
                 
                 const type = transaction?.type || 'expense';
                 const isFixed = transaction?.isFixed || false;
-                
+
                 let currentPaymentMethod = 'account';
                 if (isEditing && transaction.type === 'expense') {
                     if (transaction.paymentMethod === 'meal_voucher') {
@@ -1005,124 +1012,129 @@
 
                 const getCategoryOptions = (type) => this.data.categories[type]
                     .sort((a,b) => a.name.localeCompare(b.name))
-                    .filter(c => !(type === 'expense' && c.id === '100'))
-                    .map(c => `<option value="${c.id}" ${transaction?.categoryId === c.id ? 'selected' : ''}>${c.name}</option>`).join('');
+                    .filter(c => !(type === 'expense' && c.id === '100')) // Não deixa usar VR em despesa
+                    .map(c => `<option value="${c.id}" ${transaction?.categoryId === c.id ? 'selected' : ''}>${c.name}</option>`)
+                    .join('');
 
-                const getPaymentMethodOptions = () => {
-                    let options = `
-                        <option value="account" ${currentPaymentMethod === 'account' ? 'selected' : ''}>Conta (Débito/Dinheiro)</option>
-                        <option value="meal_voucher" ${currentPaymentMethod === 'meal_voucher' ? 'selected' : ''}>Vale Refeição</option>
-                    `;
-                    options += this.data.cards.map(c => 
-                        `<option value="${c.id}" ${currentPaymentMethod === c.id.toString() ? 'selected' : ''}>${c.name}</option>`
-                    ).join('');
+                const getPaymentOptions = () => {
+                    let options = `<option value="account" ${currentPaymentMethod === 'account' ? 'selected' : ''}>Conta (Saldo)</option>`;
+                    options += `<option value="meal_voucher" ${currentPaymentMethod === 'meal_voucher' ? 'selected' : ''}>Vale Refeição</option>`;
+                    
+                    this.data.cards.forEach(card => {
+                        options += `<option value="${card.id}" ${currentPaymentMethod === card.id ? 'selected' : ''}>${card.name}</option>`;
+                    });
                     return options;
                 };
 
-                const fixedLabel = type === 'expense' ? 'Despesa Fixa?' : 'Receita Fixa?';
-                const inputDate = transaction ? transaction.date : new Date().toISOString().split('T')[0];
+                // Tenta pegar a data de hoje no fuso local e converter para YYYY-MM-DD
+                let inputDate = transaction?.date || new Date().toISOString().split('T')[0];
+                if (this.isValidDate(inputDate) === false) {
+                     inputDate = new Date().toISOString().split('T')[0];
+                }
 
                 const modalHTML = `
-                    <form id="transaction-form" class="space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-xl font-bold">${isEditing ? 'Editar' : 'Adicionar'} Lançamento</h3>
-                            <button type="button" class="close-modal-btn p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="x"></i></button>
-                        </div>
-                        <input type="hidden" name="id" value="${transaction?.id || ''}">
+                <form id="transaction-form" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                         <h3 class="text-xl font-bold">${isEditing ? 'Editar' : 'Novo'} Lançamento</h3>
+                         <button type="button" class="close-modal-btn p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="x"></i></button>
+                    </div>
 
-                        <div class="flex border border-slate-300 dark:border-slate-600 rounded-lg overflow-hidden">
-                            <button type="button" data-type="expense" class="tab-button w-1/2 p-2 font-semibold ${type === 'expense' ? 'active' : ''}" ${isEditing ? 'disabled' : ''}>Despesa</button>
-                            <button type="button" data-type="income" class="tab-button w-1/2 p-2 font-semibold ${type === 'income' ? 'active' : ''}" ${isEditing ? 'disabled' : ''}>Receita</button>
-                        </div>
-                        <input type="hidden" id="transaction-type" name="type" value="${type}">
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" data-type="expense" class="tab-button border dark:border-slate-600 p-2 rounded-md text-sm font-semibold ${type === 'expense' ? 'active' : ''}">Despesa</button>
+                        <button type="button" data-type="income" class="tab-button border dark:border-slate-600 p-2 rounded-md text-sm font-semibold ${type === 'income' ? 'active' : ''}">Receita</button>
+                    </div>
+                    
+                    <input type="hidden" name="id" value="${transaction?.id || ''}">
+                    <input type="hidden" name="type" value="${type}">
+                    
+                    ${isGeneratedFixed ? '<p class="text-xs text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/50 p-2 rounded">Editando um lançamento fixo gerado. Apenas Descrição, Categoria e Data (dentro do mês) podem ser alterados. Para mudar valor ou recorrência, edite o lançamento original.</p>' : ''}
 
-                        ${isGeneratedFixed ? '<p class="text-xs text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/50 p-2 rounded">Editando um lançamento fixo gerado. Apenas Descrição, Categoria e Data (dentro do mês) podem ser alterados. Para mudar valor ou recorrência, edite o lançamento original.</p>' : ''}
-
+                    <div>
+                        <label class="text-sm font-medium">Valor</label>
+                        <input type="text" name="amount" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${this.formatCurrency(transaction?.amount)}" oninput="App.autoFormatCurrency(this)" ${isGeneratedFixed ? 'disabled' : ''} required>
+                    </div>
+                     <div>
+                        <label class="text-sm font-medium">Descrição</label>
+                        <input type="text" name="description" maxlength="100" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${transaction?.description || ''}" required>
+                    </div>
+                     <div>
+                        <label class="text-sm font-medium">Data</label>
+                        <input type="date" name="date" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${inputDate}" required>
+                        ${isGeneratedFixed ? '<p class="text-xs text-slate-400 mt-1">Apenas o dia pode ser alterado dentro do mês atual.</p>' : ''}
+                    </div>
+                     <div>
+                        <label class="text-sm font-medium">Categoria</label>
+                        <select id="category-select" name="categoryId" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" required>
+                            ${getCategoryOptions(type)}
+                        </select>
+                    </div>
+                    
+                    <div id="expense-options" class="space-y-4">
                         <div>
-                            <label class="text-sm font-medium">Valor</label>
-                            <input type="text" name="amount" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${this.formatCurrency(transaction?.amount)}" oninput="App.autoFormatCurrency(this)" ${isGeneratedFixed ? 'disabled' : ''} required>
-                        </div>
-                        <div>
-                            <label class="text-sm font-medium">Descrição</label>
-                            <input type="text" name="description" maxlength="100" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${transaction?.description || ''}" required>
-                        </div>
-                        <div>
-                            <label class="text-sm font-medium">Data</label>
-                            <input type="date" name="date" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${inputDate}" required>
-                            ${isGeneratedFixed ? '<p class="text-xs text-slate-400 mt-1">Apenas o dia pode ser alterado dentro do mês atual.</p>' : ''}
-                        </div>
-                        <div>
-                            <label class="text-sm font-medium">Categoria</label>
-                            <select id="category-select" name="categoryId" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" required>
-                                ${getCategoryOptions(type)}
+                            <label class="text-sm font-medium">Forma de Pagamento</label>
+                            <select id="payment-method-select" name="paymentMethod" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" ${isGeneratedFixed ? 'disabled' : ''}>
+                                ${getPaymentOptions()}
                             </select>
                         </div>
-
-                        <div id="payment-options" class="space-y-4">
-                            <div class="${type === 'expense' ? '' : 'hidden'}">
-                                <label class="text-sm font-medium">Forma de Pagamento</label>
-                                <select name="paymentMethod" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" ${isGeneratedFixed ? 'disabled' : ''}>
-                                    ${getPaymentMethodOptions()}
-                                </select>
-                            </div>
-
-                            <div id="installments-group" class="hidden">
-                                <label class="text-sm font-medium">Parcelas</label>
-                                <input type="number" name="installments" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" min="1" max="48" value="1" ${isEditing ? 'disabled' : ''}>
-                                <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Deixe 1 para compra à vista.</p>
-                            </div>
-
-                            <div class="flex items-center gap-2 pt-2">
-                                <input type="checkbox" id="is-fixed-checkbox" name="isFixed" class="h-4 w-4 rounded text-blue-500" ${isFixed ? 'checked' : ''} ${isGeneratedFixed ? 'disabled' : ''}>
-                                <label for="is-fixed-checkbox" class="text-sm font-medium">${fixedLabel}</label>
-                            </div>
+                         <div id="installments-option" class="hidden">
+                            <label class="text-sm font-medium">Parcelas</label>
+                            <input type="number" name="installments" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${transaction?.installments?.total || 1}" min="1" max="48" ${isGeneratedFixed ? 'disabled' : ''}>
                         </div>
+                    </div>
 
-                        <div class="flex gap-2 pt-4">
-                            ${isEditing ? `<button type="button" onclick="App.deleteTransaction('${transaction.id}')" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg">Excluir Lançamento</button>` : ''}
-                            <button type="submit" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg flex-1">Salvar</button>
-                        </div>
-                    </form>
+                    <div class="pt-2">
+                        <label class="flex items-center gap-2" for="is-fixed-checkbox">
+                            <input type="checkbox" id="is-fixed-checkbox" name="isFixed" class="h-4 w-4 rounded" ${isFixed ? 'checked' : ''} ${isGeneratedFixed ? 'disabled' : ''}>
+                            <span class="text-sm font-medium">${type === 'expense' ? 'Despesa Fixa?' : 'Receita Fixa?'}</span>
+                        </label>
+                        <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Lançamento será recriado todo mês nesta data.</p>
+                    </div>
+
+                    <div class="flex gap-2 pt-4">
+                        ${isEditing ? `<button type="button" onclick="App.deleteTransaction('${transaction.id}')" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg">Excluir</button>` : ''}
+                        <button type="submit" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg flex-1">Salvar</button>
+                    </div>
+                </form>
                 `;
                 
                 this.showModal(modalHTML);
-                
+
                 const form = document.getElementById('transaction-form');
-                
+                const paymentSelect = document.getElementById('payment-method-select');
+                const installmentsDiv = document.getElementById('installments-option');
+
                 const toggleOptionsVisibility = (type) => {
-                    const paymentOptions = document.getElementById('payment-options');
-                    const paymentMethodSelect = paymentOptions.querySelector('select[name="paymentMethod"]');
-                    const installmentsGroup = document.getElementById('installments-group');
-                    
-                    if (type === 'income') {
-                        paymentOptions.classList.add('hidden');
-                        installmentsGroup.classList.add('hidden');
-                    } else { // 'expense'
-                        paymentOptions.classList.remove('hidden');
-                        const selectedMethod = paymentMethodSelect.value;
-                        const isCard = selectedMethod !== 'account' && selectedMethod !== 'meal_voucher';
-                        installmentsGroup.classList.toggle('hidden', !isCard);
+                    const expenseOptions = document.getElementById('expense-options');
+                    expenseOptions.style.display = type === 'expense' ? 'block' : 'none';
+                    toggleInstallments();
+                };
+
+                const toggleInstallments = () => {
+                    const selectedValue = paymentSelect.value;
+                    const isCard = selectedValue !== 'account' && selectedValue !== 'meal_voucher';
+                    installmentsDiv.style.display = isCard ? 'block' : 'none';
+                    if (!isCard) {
+                         form.elements.installments.value = 1;
                     }
                 };
 
-                form.querySelector('select[name="paymentMethod"]').addEventListener('change', (e) => {
-                     const selectedMethod = e.target.value;
-                     const isCard = selectedMethod !== 'account' && selectedMethod !== 'meal_voucher';
-                     document.getElementById('installments-group').classList.toggle('hidden', !isCard);
-                });
-
-                form.querySelectorAll('.tab-button').forEach(btn => {
-                    btn.addEventListener('click', (e) => {
+                paymentSelect.addEventListener('change', toggleInstallments);
+                
+                form.querySelectorAll('.tab-button').forEach(button => {
+                    button.addEventListener('click', (e) => {
                         const newType = e.target.dataset.type;
-                        form.querySelector('#transaction-type').value = newType;
+                        form.elements.type.value = newType;
+                        
                         form.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
                         e.target.classList.add('active');
+                        
                         form.querySelector('#category-select').innerHTML = getCategoryOptions(newType);
                         form.querySelector('label[for="is-fixed-checkbox"]').textContent = (newType === 'expense') ? 'Despesa Fixa?' : 'Receita Fixa?';
+                        
                         toggleOptionsVisibility(newType);
                     });
                 });
-                
+
                 toggleOptionsVisibility(type);
 
                 form.addEventListener('submit', (e) => {
@@ -1145,17 +1157,17 @@
                     this.showToast('O valor deve ser maior que zero', 'error');
                     return;
                 }
-
+                
                 // CORREÇÃO: Validação de data inválida
                 if (!this.isValidDate(date)) {
-                    this.showToast('Data inválida', 'error');
-                    return;
+                     this.showToast('Data inválida', 'error');
+                     return;
                 }
                 
                 let paymentMethod = 'account';
                 let cardId = null;
                 let installments = 1;
-                
+
                 if (type === 'expense') {
                     const paymentValue = formData.get('paymentMethod');
                     if (paymentValue === 'account') {
@@ -1170,68 +1182,74 @@
                 }
 
                 if (id) {
+                    // Editando
                     const transaction = this.data.transactions.find(t => t.id === id);
                     if (!transaction) return;
                     
                     const isGeneratedFixed = transaction.isFixed && transaction.fixedSourceId && transaction.fixedSourceId !== transaction.id;
-                    
+
                     if (isGeneratedFixed) {
+                         // Editando lançamento gerado (limitado)
                          transaction.description = description;
                          transaction.categoryId = categoryId;
-                         const [newYear, newMonth, newDay] = date.split('-').map(Number);
-                         const [oldYear, oldMonth] = transaction.date.split('-').map(Number);
                          
-                         if(newYear === parseInt(oldYear) && newMonth === parseInt(oldMonth)) {
-                             transaction.date = date;
+                         // Só permite alterar o dia, dentro do mês original
+                         const originalDate = new Date(transaction.date);
+                         const newDate = new Date(date);
+                         
+                         if(newDate.getUTCMonth() === originalDate.getUTCMonth() && newDate.getUTCFullYear() === originalDate.getUTCFullYear()) {
+                            transaction.date = date;
                          } else {
-                             this.showToast("A data de lançamentos fixos gerados só pode ser alterada dentro do mês original.", 'error');
-                             transaction.date = `${oldYear}-${String(oldMonth).padStart(2, '0')}-${String(newDay).padStart(2, '0')}`;
+                             this.showToast('Data de lançamento fixo só pode ser alterada dentro do mês.', 'error');
                          }
+                    
                     } else {
-                         transaction.type = type;
-                         transaction.amount = amount;
-                         transaction.description = description;
-                         transaction.date = date;
-                         transaction.originalDate = isFixed ? (transaction.originalDate || date) : null;
-                         transaction.categoryId = categoryId;
-                         transaction.isFixed = isFixed;
-                         transaction.paymentMethod = paymentMethod;
-                         transaction.cardId = cardId;
+                         // Editando lançamento normal ou original
+                         const oldInstallments = transaction.installments;
+                         const oldPurchaseId = transaction.purchaseId;
+                         
+                         // Se era parcelado e deixou de ser, ou mudou o valor
+                         if (oldPurchaseId && (installments === 1 || amount !== transaction.amount)) {
+                             // Excluir todas as parcelas antigas
+                              this.data.transactions = this.data.transactions.filter(t => t.purchaseId !== oldPurchaseId);
+                         }
+                         
+                         // Se era fixo e deixou de ser
+                         if(transaction.isFixed && !isFixed) {
+                             // Remove futuros gerados
+                             this.data.transactions = this.data.transactions.filter(t => t.fixedSourceId !== transaction.id || t.id === transaction.id);
+                         }
+                         
+                         // Se era parcelado, apaga e recria
+                         if (oldPurchaseId && installments > 1) {
+                             this.createInstallments(type, amount, description, date, categoryId, cardId, installments);
+                         
+                         } else if (installments > 1) {
+                             // Era normal e virou parcelado
+                             this.createInstallments(type, amount, description, date, categoryId, cardId, installments);
+                             // Remove o original que serviu de base (se não for o mesmo ID)
+                             if(transaction.id !== id) {
+                                  this.data.transactions = this.data.transactions.filter(t => t.id !== id);
+                             }
+
+                         } else {
+                             // Atualização simples
+                             Object.assign(transaction, {
+                                 type, amount, description, date, categoryId, isFixed, paymentMethod, cardId,
+                                 originalDate: isFixed ? (transaction.originalDate || date) : null,
+                                 fixedSourceId: isFixed ? (transaction.fixedSourceId || id) : null,
+                                 installments: null,
+                                 purchaseId: null
+                             });
+                         }
                     }
 
                 } else {
-                    const newId = this.getNewId();
-                    
-                    if (type === 'expense' && paymentMethod === 'card' && installments > 1) {
-                        const purchaseId = `p-${newId}`;
-                        
-                        const totalAmount = amount;
-                        const installmentAmount = Math.floor((totalAmount / installments) * 100) / 100;
-                        const lastInstallmentAmount = parseFloat((totalAmount - (installmentAmount * (installments - 1))).toFixed(2)); // Arredonda a última
-
-                        for (let i = 0; i < installments; i++) {
-                             const installmentDate = this.addMonths(date, i);
-                             const currentInstallmentAmount = (i === installments - 1) ? lastInstallmentAmount : installmentAmount;
-                             
-                             this.data.transactions.push({
-                                id: this.getNewId(),
-                                type: 'expense',
-                                amount: currentInstallmentAmount,
-                                description: `${description} (${i+1}/${installments})`,
-                                date: installmentDate,
-                                categoryId: categoryId,
-                                isFixed: false, 
-                                paid: false,
-                                paymentMethod: 'card',
-                                cardId: cardId,
-                                purchaseId: purchaseId,
-                                installments: {
-                                    current: i + 1,
-                                    total: installments
-                                }
-                            });
-                        }
+                    // Novo Lançamento
+                    if (installments > 1 && type === 'expense' && cardId) {
+                         this.createInstallments(type, amount, description, date, categoryId, cardId, installments);
                     } else {
+                         const newId = this.getNewId();
                         this.data.transactions.push({
                             id: newId,
                             type: type,
@@ -1242,7 +1260,7 @@
                             categoryId: categoryId,
                             isFixed: isFixed,
                             fixedSourceId: isFixed ? newId : null,
-                            paid: false, 
+                            paid: false,
                             paymentMethod: paymentMethod,
                             cardId: cardId,
                             installments: null,
@@ -1258,287 +1276,403 @@
             deleteTransaction(id) {
                 let transaction = this.data.transactions.find(t => t.id === id);
                 if (!transaction) return;
-                
+
                 let confirmMsg = `Excluir "${transaction.description}" (${this.formatCurrency(transaction.amount)})?`;
                 let idsToDelete = [id];
 
-                if (transaction.purchaseId) { 
+                if (transaction.purchaseId) {
                     confirmMsg = `Este lançamento é parte de uma compra parcelada. Excluir irá remover TODAS as ${transaction.installments.total} parcelas desta compra. Deseja continuar?`;
                     const purchaseId = transaction.purchaseId;
                     const installmentIds = this.data.transactions
-                        .filter(t => t.purchaseId === purchaseId) 
+                        .filter(t => t.purchaseId === purchaseId)
                         .map(t => t.id);
                     idsToDelete = installmentIds;
-
-                } else if (transaction.isFixed && transaction.fixedSourceId === transaction.id) { 
+                
+                } else if (transaction.isFixed && transaction.fixedSourceId === transaction.id) {
                      confirmMsg = "Este é um lançamento fixo original. Excluir também removerá todos os lançamentos futuros gerados por ele. Deseja continuar?";
                      const sourceId = transaction.id;
                      const generatedIds = this.data.transactions
-                         .filter(t => t.fixedSourceId === sourceId)
-                         .map(t => t.id);
+                        .filter(t => t.fixedSourceId === sourceId)
+                        .map(t => t.id);
                      idsToDelete = generatedIds;
-                
-                } else if (transaction.isFixed && transaction.fixedSourceId !== transaction.id) { 
-                     confirmMsg = `Este é um lançamento gerado por uma transação fixa. Deseja excluir apenas este lançamento de ${new Date(transaction.date).toLocaleDateString('pt-BR', {month: 'long', timeZone: 'UTC'})}?`;
                 }
-                
+
                 if (confirm(confirmMsg)) {
-                    const idsSet = new Set(idsToDelete);
-                    this.data.transactions = this.data.transactions.filter(t => !idsSet.has(t.id));
-                    
+                    this.data.transactions = this.data.transactions.filter(t => !idsToDelete.includes(t.id));
                     this.saveData();
-                    this.showToast('Lançamento(s) excluído(s)', 'success');
-                    document.getElementById('modal').click(); 
+                    this.showToast('Lançamento(s) excluído(s)!', 'success');
                 }
             },
             
-            generateRecurringTransactions() {
-                 const now = new Date();
-                 const currentMonth = now.getUTCMonth(); // Usa UTC para consistência
-                 const currentYear = now.getUTCFullYear();
-                 let requiresSave = false;
-                 
-                 const originalFixedTransactions = this.data.transactions
-                     .filter(t => t.isFixed && t.fixedSourceId === t.id);
-                     
-                 originalFixedTransactions.forEach(origTrans => {
-                      const [origYear, origMonth, origDay] = origTrans.originalDate.split('-').map(Number);
-                      
-                      let targetMonth = currentMonth;
-                      let targetYear = currentYear;
-                      
-                       const targetDateStr = this.getTargetDateForRecurring(origTrans.originalDate, targetMonth, targetYear);
-                       
-                       if (new Date(targetDateStr) < new Date(origTrans.originalDate)) {
-                           return;
-                       }
-                       
-                       if (origYear === targetYear && (origMonth - 1) === targetMonth) {
-                           return;
-                       }
-
-                       const alreadyExists = this.data.transactions.some(t => 
-                           t.fixedSourceId === origTrans.id &&
-                           t.date.startsWith(`${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`)
-                       );
-                       
-
-                       if (!alreadyExists) {
-                            requiresSave = true;
-                            const newGeneratedTransaction = {
-                                ...origTrans,
-                                id: this.getNewId(),
-                                date: targetDateStr,
-                                originalDate: origTrans.originalDate,
-                                fixedSourceId: origTrans.id,
-                                isFixed: true,
-                                paid: false, 
-                                installments: null,
-                                purchaseId: null,
-                            };
-                            this.data.transactions.push(newGeneratedTransaction);
-                            console.log("Gerando lançamento fixo:", newGeneratedTransaction.description);
-                       }
-                 });
-
-                 if (requiresSave) {
-                     this.saveData(true);
+            toggleTransactionPaid(id) {
+                 const transaction = this.data.transactions.find(t => t.id === id && t.type === 'expense');
+                 if (transaction) {
+                     transaction.paid = !transaction.paid;
+                     this.saveData();
                  }
             },
 
+            createInstallments(type, amount, description, date, categoryId, cardId, installments) {
+                const purchaseId = this.getNewId();
+                const installmentAmount = Math.floor((amount / installments) * 100) / 100;
+                let remainingAmount = amount;
+
+                for (let i = 0; i < installments; i++) {
+                    const currentAmount = (i === installments - 1) ? remainingAmount : installmentAmount;
+                    remainingAmount -= currentAmount;
+                    
+                    const installmentDate = new Date(this.getUTCDate(date));
+                    installmentDate.setUTCMonth(installmentDate.getUTCMonth() + i);
+                    
+                    // Correção para fim de mês (ex: 31/01 -> 28/02)
+                    const originalDay = new Date(this.getUTCDate(date)).getUTCDate();
+                    if (installmentDate.getUTCDate() !== originalDay) {
+                         installmentDate.setUTCDate(0); // Vai para o último dia do mês anterior (que é o mês da parcela)
+                    }
+
+                    this.data.transactions.push({
+                        id: this.getNewId(),
+                        type: type,
+                        amount: currentAmount,
+                        description: `${description} (${i + 1}/${installments})`,
+                        date: this.getISODate(installmentDate),
+                        originalDate: null,
+                        categoryId: categoryId,
+                        isFixed: false,
+                        paid: false,
+                        paymentMethod: 'card',
+                        cardId: cardId,
+                        purchaseId: purchaseId,
+                        installments: {
+                            current: i + 1,
+                            total: installments
+                        }
+                    });
+                }
+            },
+            
+             generateRecurringTransactions() {
+                const now = new Date();
+                const currentMonth = now.getUTCMonth();
+                const currentYear = now.getUTCFullYear();
+                
+                const fixedTransactions = this.data.transactions.filter(t => t.isFixed && t.fixedSourceId === t.id);
+                let requiresSave = false;
+
+                fixedTransactions.forEach(original => {
+                    const originalDate = new Date(original.originalDate);
+                    if (isNaN(originalDate.getTime())) return; // Pula se data original for inválida
+                    
+                    // Não gera se o lançamento original for do mês/ano atual
+                    if (originalDate.getUTCMonth() === currentMonth && originalDate.getUTCFullYear() === currentYear) {
+                        return;
+                    }
+
+                    // Verifica se já existe um lançamento gerado para este mês
+                    const alreadyExists = this.data.transactions.some(t => {
+                         if (t.fixedSourceId !== original.id) return false;
+                         const tDate = new Date(t.date);
+                         if (isNaN(tDate.getTime())) return false;
+                         return tDate.getUTCMonth() === currentMonth && tDate.getUTCFullYear() === currentYear;
+                    });
+
+                    if (alreadyExists) {
+                        return;
+                    }
+
+                    // Se não existe, cria o lançamento para o mês atual
+                    const newDate = this.getNextDueDate(originalDate.getUTCDate(), currentMonth, currentYear);
+                    
+                    const newGeneratedTransaction = {
+                        ...original,
+                        id: this.getNewId(),
+                        date: newDate,
+                        paid: false, // Lançamentos futuros são sempre "não pagos"
+                        fixedSourceId: original.id, // Linka ao original
+                        purchaseId: null, // Não é mais uma parcela
+                        installments: null
+                    };
+                    
+                    this.data.transactions.push(newGeneratedTransaction);
+                    requiresSave = true;
+                    console.log("Gerando lançamento fixo:", newGeneratedTransaction.description);
+                });
+                
+                if (requiresSave) {
+                    this.saveData(true);
+                }
+            },
 
             // =================================================================================
             // Seção: Cartões de Crédito (Cards)
             // =================================================================================
-            
+
             renderCards() {
                 const listEl = document.getElementById('cards-list');
                 if (this.data.cards.length === 0) {
-                     listEl.innerHTML = `<p class="text-center text-sm text-slate-500 dark:text-slate-400 py-8">Nenhum cartão cadastrado.</p>`;
+                    listEl.innerHTML = `<p class="text-center text-sm text-slate-500 dark:text-slate-400 py-8">Nenhum cartão cadastrado.</p>`;
                     return;
                 }
+
                 const now = new Date();
                 const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())); // Zera horas e usa UTC
                 const currentMonth = now.getUTCMonth();
                 const currentYear = now.getUTCFullYear();
-
+                
                 listEl.innerHTML = this.data.cards
                     .sort((a,b) => a.name.localeCompare(b.name))
                     .map(card => {
-                        let testDueDate = new Date(Date.UTC(currentYear, currentMonth, card.dueDay));
-                        let testCloseMonth = currentMonth;
-                        let testCloseYear = currentYear;
+                    
+                    // Data de Fechamento (ex: dia 25)
+                    const closeDate = new Date(Date.UTC(currentYear, currentMonth, card.closeDay));
+                    // Data de Vencimento (ex: dia 05)
+                    const dueDate = new Date(Date.UTC(currentYear, currentMonth, card.dueDay));
 
-                        if (card.closeDay > card.dueDay) {
-                            testCloseMonth--;
-                            if (testCloseMonth < 0) {
-                                testCloseMonth = 11;
-                                testCloseYear--;
-                            }
-                        }
+                    let invoiceMonth, invoiceYear, closeMonth, closeYear, dueMonth, dueYear;
+
+                    if (today > closeDate) {
+                        // Fatura atual já fechou, estamos olhando para o próximo vencimento
+                        // Vencimento é no próximo mês
+                        dueMonth = (currentMonth + 1) % 12;
+                        dueYear = (currentMonth + 1 > 11) ? currentYear + 1 : currentYear;
                         
-                        let testCloseDate = new Date(Date.UTC(testCloseYear, testCloseMonth, card.closeDay));
-
-                        if (today > testCloseDate) {
-                            testDueDate = new Date(Date.UTC(currentYear, currentMonth + 1, card.dueDay));
-                            testCloseMonth = currentMonth + 1; // Mês da data de fechamento
-                            testCloseYear = currentYear;
-                            
-                             // Ajusta o ano se o mês passar de 11 (Dezembro)
-                            if (testCloseMonth > 11) {
-                                testCloseMonth = 0;
-                                testCloseYear++;
-                            }
-                            
-                            // Recalcula o mês/ano de fechamento baseado no mês de vencimento ajustado
-                            if (card.closeDay > card.dueDay) {
-                                testCloseMonth--; // Fechamento é no mês anterior ao vencimento
-                                if (testCloseMonth < 0) {
-                                    testCloseMonth = 11;
-                                    testCloseYear--; // Ajusta o ano se voltar para Dezembro
-                                }
-                            }
-                            testCloseDate = new Date(Date.UTC(testCloseYear, testCloseMonth, card.closeDay));
-                        }
+                        // O fechamento relevante é o do mês atual
+                        closeMonth = currentMonth;
+                        closeYear = currentYear;
                         
-                        const currentCloseDate = testCloseDate;
-                        const currentDueDate = testDueDate;
+                        // Fatura se refere ao mês que vem
+                        invoiceMonth = dueMonth;
+                        invoiceYear = dueYear;
 
-                        let prevCloseMonth = testCloseMonth - 1;
-                        let prevCloseYear = testCloseYear;
-                        if (prevCloseMonth < 0) {
-                            prevCloseMonth = 11;
-                            prevCloseYear--;
-                        }
-                        const prevCloseDate = new Date(Date.UTC(prevCloseYear, prevCloseMonth, card.closeDay));
+                    } else {
+                        // Fatura atual ainda aberta
+                        // Vencimento é este mês
+                        dueMonth = currentMonth;
+                        dueYear = currentYear;
                         
-                        let nextCloseMonth = testCloseMonth + 1;
-                        let nextCloseYear = testCloseYear;
-                        if (nextCloseMonth > 11) {
-                            nextCloseMonth = 0;
-                            nextCloseYear++;
-                        }
-                        const nextCloseDate = new Date(Date.UTC(nextCloseYear, nextCloseMonth, card.closeDay));
+                        // O fechamento relevante é o do mês anterior
+                        closeMonth = (currentMonth - 1 < 0) ? 11 : currentMonth - 1;
+                        closeYear = (currentMonth - 1 < 0) ? currentYear - 1 : currentYear;
+                        
+                        // Fatura se refere a este mês
+                        invoiceMonth = dueMonth;
+                        invoiceYear = dueYear;
+                    }
+                    
+                     if(card.closeDay >= card.dueDay) {
+                         // Vencimento (ex: 05) é ANTES do Fechamento (ex: 25) (Ex: Nubank)
+                         // Vencimento 05/11. Fechamento 25/10.
+                         // Se hoje (03/11) for < Vencimento (05/11) -> Fatura é 05/11
+                         // Se hoje (06/11) for > Vencimento (05/11) -> Fatura é 05/12
+                         
+                         if(today.getUTCDate() > card.dueDay) {
+                            // Já passou o vencimento deste mês, olhamos pro próximo
+                             invoiceMonth = (currentMonth + 1) % 12;
+                             invoiceYear = (currentMonth + 1 > 11) ? currentYear + 1 : currentYear;
+                             
+                             closeMonth = currentMonth;
+                             closeYear = currentYear;
+                         
+                         } else {
+                             // Vencimento deste mês ainda não chegou
+                             invoiceMonth = currentMonth;
+                             invoiceYear = currentYear;
+                             
+                             closeMonth = (currentMonth - 1 < 0) ? 11 : currentMonth - 1;
+                             closeYear = (currentMonth - 1 < 0) ? currentYear - 1 : currentYear;
+                         }
 
-                        const currentInvoiceTransactions = this.data.transactions.filter(t => {
-                            if(t.cardId !== card.id) return false;
-                            const tDate = new Date(t.date); // Compara com data local mas os limites são UTC
-                             if (isNaN(tDate.getTime())) return false; 
-                            return tDate > prevCloseDate && tDate <= currentCloseDate;
-                        });
+                     } else {
+                         // Vencimento (ex: 15) é DEPOIS do Fechamento (ex: 05) (Ex: Inter)
+                         // Vencimento 15/11. Fechamento 05/11.
+                         // Se hoje (03/11) for < Fechamento (05/11) -> Fatura é 15/11 (fechamento 05/11)
+                         // Se hoje (06/11) for > Fechamento (05/11) -> Fatura é 15/11 (fechamento 05/11)
+                         // Se hoje (16/11) for > Vencimento (15/11) -> Fatura é 15/12 (fechamento 05/12)
+                         
+                         if(today.getUTCDate() > card.dueDay) {
+                             // Já passou vencimento, olhamos pro próximo
+                             invoiceMonth = (currentMonth + 1) % 12;
+                             invoiceYear = (currentMonth + 1 > 11) ? currentYear + 1 : currentYear;
+                             
+                             closeMonth = (currentMonth + 1) % 12; // Fechamento é no mês do vencimento
+                             closeYear = (currentMonth + 1 > 11) ? currentYear + 1 : currentYear;
 
-                        const nextInvoiceTransactions = this.data.transactions.filter(t => {
+                         } else {
+                             // Vencimento deste mês
+                             invoiceMonth = currentMonth;
+                             invoiceYear = currentYear;
+                             
+                             closeMonth = currentMonth; // Fechamento é no mês do vencimento
+                             closeYear = currentYear;
+                         }
+                     }
+                    
+                    // Data final de fechamento e vencimento
+                    const finalDueDate = new Date(Date.UTC(invoiceYear, invoiceMonth, card.dueDay));
+                    let finalCloseDate;
+
+                    if(card.closeDay >= card.dueDay) {
+                         // Fechamento é no mês anterior ao vencimento
+                         const closeInvMonth = (invoiceMonth - 1 < 0) ? 11 : invoiceMonth - 1;
+                         const closeInvYear = (invoiceMonth - 1 < 0) ? invoiceYear - 1 : invoiceYear;
+                         finalCloseDate = new Date(Date.UTC(closeInvYear, closeInvMonth, card.closeDay));
+                    } else {
+                        // Fechamento é no mesmo mês do vencimento
+                         finalCloseDate = new Date(Date.UTC(invoiceYear, invoiceMonth, card.closeDay));
+                    }
+                    
+                    const invoiceStartDate = new Date(finalCloseDate);
+                    invoiceStartDate.setUTCDate(invoiceStartDate.getUTCDate() + 1);
+                    invoiceStartDate.setUTCMonth(invoiceStartDate.getUTCMonth() - 1);
+                    
+                    const invoiceEndDate = finalCloseDate;
+
+                    const getTransactions = (startDate, endDate) => {
+                        return this.data.transactions.filter(t => {
                             if (t.cardId !== card.id) return false;
-                            const tDate = new Date(t.date);
+                            const tDate = new Date(t.date); // Datas já estão em UTC
                              if (isNaN(tDate.getTime())) return false; 
-                            return tDate > currentCloseDate && tDate <= nextCloseDate;
+                             
+                            return tDate >= startDate && tDate <= endDate;
                         });
+                    };
 
-                        const currentInvoiceTotal = currentInvoiceTransactions.reduce((sum, t) => sum + t.amount, 0);
-                        const nextInvoiceTotal = nextInvoiceTransactions.reduce((sum, t) => sum + t.amount, 0);
+                    const currentInvoiceTransactions = getTransactions(invoiceStartDate, invoiceEndDate);
+                    const currentInvoiceTotal = currentInvoiceTransactions.reduce((sum, t) => sum + t.amount, 0);
 
-                        const currentTxIds = JSON.stringify(currentInvoiceTransactions.map(t => t.id));
-                        const nextTxIds = JSON.stringify(nextInvoiceTransactions.map(t => t.id));
+                    const nextInvoiceStartDate = new Date(invoiceEndDate);
+                    nextInvoiceStartDate.setUTCDate(nextInvoiceStartDate.getUTCDate() + 1);
+                    
+                    const nextInvoiceEndDate = new Date(nextInvoiceStartDate);
+                    nextInvoiceEndDate.setUTCMonth(nextInvoiceEndDate.getUTCMonth() + 1);
+                    
+                    const openInvoiceTransactions = getTransactions(nextInvoiceStartDate, nextInvoiceEndDate);
+                    const openInvoiceTotal = openInvoiceTransactions.reduce((sum, t) => sum + t.amount, 0);
+                    
+                    const currentIds = currentInvoiceTransactions.map(t=>t.id);
+                    const openIds = openInvoiceTransactions.map(t=>t.id);
 
-                        const options = {day: '2-digit', month: 'short', timeZone: 'UTC'};
-                        const optionsFull = {timeZone: 'UTC'};
+                    const dueStr = finalDueDate.toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit' });
+                    const closeStr = finalCloseDate.toLocaleDateString('pt-BR', { timeZone: 'UTC', day: '2-digit', month: '2-digit' });
 
-                        return `
-                            <div class="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg shadow-sm cursor-pointer" onclick="App.showCardModal('${card.id}')">
-                                <h3 class="font-bold text-lg">${card.name}</h3>
-                                <p class="text-sm text-slate-500 dark:text-slate-400">Vencimento: Dia ${card.dueDay} | Fechamento: Dia ${card.closeDay}</p>
-                                <div class="mt-3 space-y-2">
-                                    
-                                    <div class="cursor-pointer p-2 -m-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50" onclick="event.stopPropagation(); App.showCardStatementModal('${card.name}', 'Fatura Atual (Vence ${currentDueDate.toLocaleDateString('pt-BR', options)})', ${currentTxIds})">
-                                        <p class="text-sm font-semibold text-red-600 dark:text-red-400">Fatura Atual (Vence ${currentDueDate.toLocaleDateString('pt-BR', options)})</p>
-                                        <p class="text-lg font-bold text-red-700 dark:text-red-300">${this.formatCurrency(currentInvoiceTotal)}</p>
-                                        <p class="text-xs text-slate-400">(Fechamento: ${currentCloseDate.toLocaleDateString('pt-BR', optionsFull)})</p>
-                                    </div>
-                                    
-                                     <div class="cursor-pointer p-2 -m-2 rounded hover:bg-slate-100 dark:hover:bg-slate-700/50" onclick="event.stopPropagation(); App.showCardStatementModal('${card.name}', 'Próxima Fatura', ${nextTxIds})">
-                                        <p class="text-sm font-semibold text-blue-600 dark:text-blue-400">Próxima Fatura</p>
-                                        <p class="text-lg font-bold text-blue-700 dark:text-blue-300">${this.formatCurrency(nextInvoiceTotal)}</p>
-                                        <p class="text-xs text-slate-400">(Fecha: ${nextCloseDate.toLocaleDateString('pt-BR', optionsFull)})</p>
-                                    </div>
-                                    
-                                </div>
-                            </div>
-                        `;
-                    }).join('');
-            },
-
-            showCardModal(id) {
-                 const card = id ? this.data.cards.find(c => c.id === id) : null;
-                 const isEditing = !!card;
-
-                 const modalHTML = `
-                    <form id="card-form" class="space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-xl font-bold">${isEditing ? 'Editar' : 'Adicionar'} Cartão</h3>
-                            <button type="button" class="close-modal-btn p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="x"></i></button>
-                        </div>
-                        <input type="hidden" name="id" value="${card?.id || ''}">
-                         <div>
-                            <label class="text-sm font-medium">Nome do Cartão (Ex: Nubank, Inter)</label>
-                            <input type="text" name="name" maxlength="50" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${card?.name || ''}" required>
-                        </div>
-                         <div>
-                            <label class="text-sm font-medium">Dia do Vencimento</label>
-                            <input type="number" name="dueDay" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" min="1" max="31" value="${card?.dueDay || 10}" required>
-                        </div>
-                         <div>
-                            <label class="text-sm font-medium">Dia do Fechamento</label>
-                            <input type="number" name="closeDay" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" min="1" max="31" value="${card?.closeDay || 1}" required>
+                    return `
+                    <div class="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg shadow space-y-3">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-lg font-bold text-blue-600 dark:text-blue-400">${card.name}</h3>
+                            <button onclick="App.showCardModal('${card.id}')" class="p-1 text-slate-500 hover:text-blue-500">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </button>
                         </div>
                         
-                        <div class="flex gap-2 pt-4">
-                            ${isEditing ? `<button type="button" onclick="App.deleteCard('${card.id}')" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg">Excluir Cartão</button>` : ''}
-                            <button type="submit" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg flex-1">Salvar</button>
+                        <div>
+                            <div class="flex justify-between items-center cursor-pointer" onclick="App.showCardStatementModal('${card.name}', 'Fatura Fechada (Venc. ${dueStr})', [${currentIds.map(id => `'${id}'`)}])">
+                                <div>
+                                    <p class="text-sm font-semibold">Fatura Fechada (Venc. ${dueStr})</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Fechamento em ${closeStr}</p>
+                                </div>
+                                <p class="text-lg font-bold text-red-600 dark:text-red-400">${this.formatCurrency(currentInvoiceTotal)}</p>
+                            </div>
                         </div>
-                    </form>
-                 `;
-                 this.showModal(modalHTML);
-                 
-                 document.getElementById('card-form').addEventListener('submit', (e) => {
-                     e.preventDefault();
-                     const formData = new FormData(e.target);
-                     const id = formData.get('id') || null;
-                     const name = formData.get('name').trim();
-                     const dueDay = parseInt(formData.get('dueDay'));
-                     const closeDay = parseInt(formData.get('closeDay'));
+                        
+                         <div>
+                            <div class="flex justify-between items-center cursor-pointer" onclick="App.showCardStatementModal('${card.name}', 'Fatura Aberta (Próxima)', [${openIds.map(id => `'${id}'`)}])">
+                                <div>
+                                    <p class="text-sm font-semibold">Fatura Aberta (Próxima)</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400">Parcial</p>
+                                </div>
+                                <p class="text-lg font-bold text-slate-600 dark:text-slate-300">${this.formatCurrency(openInvoiceTotal)}</p>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+                
+                lucide.createIcons();
+            },
+            
+            showCardModal(id) {
+                const card = id ? this.data.cards.find(c => c.id === id) : null;
+                const isEditing = !!card;
+                
+                const dayOptions = (selected) => {
+                    let opts = '';
+                    for(let i=1; i <= 31; i++) {
+                        opts += `<option value="${i}" ${selected == i ? 'selected' : ''}>Dia ${i}</option>`;
+                    }
+                    return opts;
+                };
 
-                     if (dueDay < 1 || dueDay > 31 || closeDay < 1 || closeDay > 31) {
-                        this.showToast('Dias de vencimento/fechamento devem ser entre 1 e 31', 'error');
+                const modalHTML = `
+                <form id="card-form" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                         <h3 class="text-xl font-bold">${isEditing ? 'Editar' : 'Novo'} Cartão</h3>
+                         <button type="button" class="close-modal-btn p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="x"></i></button>
+                    </div>
+                    <input type="hidden" name="id" value="${card?.id || ''}">
+                    <div>
+                        <label class="text-sm font-medium">Nome do Cartão (Ex: Nubank)</label>
+                        <input type="text" name="name" maxlength="100" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${card?.name || ''}" required>
+                    </div>
+                     <div>
+                        <label class="text-sm font-medium">Dia do Vencimento</label>
+                        <select name="dueDay" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" required>
+                           ${dayOptions(card?.dueDay)}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium">Dia do Fechamento da Fatura</label>
+                        <select name="closeDay" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" required>
+                            ${dayOptions(card?.closeDay)}
+                        </select>
+                         <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">Geralmente 7-10 dias antes do vencimento.</p>
+                    </div>
+
+                    <div class="flex gap-2 pt-4">
+                        ${isEditing ? `<button type="button" onclick="App.deleteCard('${card.id}')" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg">Excluir</button>` : ''}
+                        <button type="submit" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg flex-1">Salvar</button>
+                    </div>
+                </form>
+                `;
+                
+                this.showModal(modalHTML);
+                
+                document.getElementById('card-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    const id = formData.get('id') || null;
+                    const name = formData.get('name');
+                    const dueDay = parseInt(formData.get('dueDay'));
+                    const closeDay = parseInt(formData.get('closeDay'));
+
+                    if(dueDay === closeDay) {
+                        this.showToast('Dia do vencimento e fechamento não podem ser iguais', 'error');
                         return;
-                     }
-                     if (dueDay === closeDay) {
-                         this.showToast('O dia de vencimento e fechamento não podem ser iguais', 'error');
-                        return;
-                     }
-                     
-                     const isDuplicateName = this.data.cards.some(c => c.name.toLowerCase() === name.toLowerCase() && c.id !== id);
+                    }
+                    
+                    const isDuplicateName = this.data.cards.some(c => c.name.toLowerCase() === name.toLowerCase() && c.id !== id);
                      if (isDuplicateName) {
-                         this.showToast('Já existe um cartão com este nome', 'error');
-                         return;
-                     }
-                     
-                     const newCardData = {
-                         id: id || this.getNewId(),
-                         name: name,
-                         dueDay: dueDay,
-                         closeDay: closeDay,
-                     };
+                        this.showToast('Já existe um cartão com este nome', 'error');
+                        return;
+                    }
 
-                     if(id) { // Edit
-                         const index = this.data.cards.findIndex(c => c.id === id);
-                         this.data.cards[index] = newCardData;
-                     } else { // New
-                         this.data.cards.push(newCardData);
-                     }
-                     this.saveData();
-                     this.showToast('Cartão salvo!', 'success');
-                     document.getElementById('modal').click();
-                 });
+                    const newCardData = {
+                        id: id || this.getNewId(),
+                        name: name,
+                        dueDay: dueDay,
+                        closeDay: closeDay,
+                    };
+
+                    if(id) { // Edit
+                        const index = this.data.cards.findIndex(c => c.id === id);
+                        this.data.cards[index] = newCardData;
+                    } else { // New
+                        this.data.cards.push(newCardData);
+                    }
+                    
+                    this.saveData();
+                    this.showToast('Cartão salvo!', 'success');
+                    document.getElementById('modal').click();
+                });
             },
             
             showCardStatementModal(cardName, title, transactionIds) {
@@ -1551,10 +1685,10 @@
                     transactionsHTML = `<p class="text-sm text-slate-500 dark:text-slate-400 text-center py-4">Nenhum lançamento nesta fatura.</p>`;
                 } else {
                     transactionsHTML = transactions.map(t => {
-                        // Trata data inválida na exibição
+                         // Trata data inválida na exibição
                         const dateObj = new Date(t.date);
                         const dateStr = !isNaN(dateObj.getTime()) ? dateObj.toLocaleDateString('pt-BR', {timeZone: 'UTC'}) : 'Data inválida';
-
+                        
                         return `
                         <div class="flex items-center justify-between py-2 border-b dark:border-slate-700">
                             <div class="flex-1 min-w-0 mr-2">
@@ -1563,303 +1697,337 @@
                             </div>
                             <p class="font-bold text-red-600 dark:text-red-400">${this.formatCurrency(t.amount)}</p>
                         </div>
-                        `;
+                        `
                     }).join('');
                 }
-                
+
                 const total = transactions.reduce((sum, t) => sum + t.amount, 0);
 
                 const modalHTML = `
-                    <div class="space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-xl font-bold">${cardName}</h3>
-                            <button type="button" class="close-modal-btn p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="x"></i></button>
-                        </div>
-                        <p class="text-sm font-semibold text-slate-600 dark:text-slate-300">${title}</p>
-                        
-                        <div class="max-h-[50vh] overflow-y-auto pr-2 space-y-1">
-                            ${transactionsHTML}
-                        </div>
-                        
-                        <div class="flex justify-between items-center pt-3 border-t dark:border-slate-700">
-                            <span class="text-lg font-bold">Total</span>
-                            <span class="text-lg font-bold text-red-600 dark:text-red-300">${this.formatCurrency(total)}</span>
-                        </div>
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                         <h3 class="text-xl font-bold">${cardName}</h3>
+                         <button type="button" class="close-modal-btn p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="x"></i></button>
                     </div>
+                    <div>
+                        <p class="text-sm font-semibold text-slate-600 dark:text-slate-300">${title}</p>
+                        <p class="text-2xl font-bold">${this.formatCurrency(total)}</p>
+                    </div>
+                    <div class="max-h-60 overflow-y-auto space-y-1 pr-2">
+                       ${transactionsHTML}
+                    </div>
+                </div>
                 `;
-                
                 this.showModal(modalHTML);
             },
-            
+
             deleteCard(id) {
                 const isUsed = this.data.transactions.some(t => t.cardId === id);
                 if (isUsed) {
-                    this.showToast("Não é possível excluir este cartão. Ele está sendo usado em um ou mais lançamentos.", 'error');
+                    this.showToast("Não é possível excluir. Cartão em uso. Mude os lançamentos primeiro.", 'error');
                     return;
                 }
-
                 if (confirm("Tem certeza que deseja excluir este cartão?")) {
                     this.data.cards = this.data.cards.filter(c => c.id !== id);
                     this.saveData();
-                    this.showToast('Cartão excluído', 'success');
+                    this.showToast('Cartão excluído!', 'success');
                     document.getElementById('modal').click();
                 }
             },
-            
+
+
             // =================================================================================
             // Seção: Metas (Goals)
             // =================================================================================
+            
             renderGoals() {
                 const listEl = document.getElementById('goals-list');
                  if (this.data.goals.length === 0) {
-                     listEl.innerHTML = `<p class="text-center text-sm text-slate-500 dark:text-slate-400 py-8">Nenhuma meta criada.</p>`;
+                    listEl.innerHTML = `<p class="text-center text-sm text-slate-500 dark:text-slate-400 py-8">Nenhuma meta criada.</p>`;
                     return;
                 }
                 
-                listEl.innerHTML = this.data.goals
-                    .sort((a,b) => a.name.localeCompare(b.name))
-                    .map(goal => `
-                        <div class="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg cursor-pointer" onclick="App.showGoalModal('${goal.id}')">
-                             ${this.getGoalHTML(goal)}
-                             <div class="flex justify-end gap-2 mt-3">
-                                <button onclick="event.stopPropagation(); App.showGoalDepositModal('${goal.id}', 'add')" class="bg-green-500 text-white text-xs font-semibold py-1 px-3 rounded-lg">Adicionar</button>
-                                <button onclick="event.stopPropagation(); App.showGoalDepositModal('${goal.id}', 'remove')" class="bg-yellow-500 text-white text-xs font-semibold py-1 px-3 rounded-lg">Retirar</button>
-                             </div>
+                 listEl.innerHTML = this.data.goals
+                    .sort((a,b) => (a.saved / a.target) - (b.saved / b.target)) // Ordena por % concluída
+                    .map(goal => {
+                    const progress = (goal.target > 0) ? Math.min(100, (goal.saved / goal.target) * 100) : 0;
+                    
+                    return `
+                    <div class="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg shadow space-y-3">
+                        <div class="flex justify-between items-center">
+                            <h3 class="text-lg font-bold">${goal.name}</h3>
+                            <button onclick="App.showGoalModal('${goal.id}')" class="p-1 text-slate-500 hover:text-blue-500">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </button>
                         </div>
-                    `).join('');
+                        
+                         <div class="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-4">
+                            <div class="bg-blue-500 h-4 rounded-full text-white text-xs font-bold flex items-center justify-center" style="width: ${progress}%">
+                                ${progress > 15 ? `${progress.toFixed(0)}%` : ''}
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-between items-center text-sm">
+                             <span class="font-medium text-slate-600 dark:text-slate-300">Guardado: <span class="text-green-600 dark:text-green-400">${this.formatCurrency(goal.saved)}</span></span>
+                             <span class="font-bold">Alvo: ${this.formatCurrency(goal.target)}</span>
+                        </div>
+                        
+                         <div class="flex gap-2 pt-2">
+                             <button onclick="App.showGoalDepositModal('${goal.id}', 'add')" class="bg-green-500 text-white w-full text-sm font-semibold py-1 px-3 rounded-lg">Adicionar</button>
+                             <button onclick="App.showGoalDepositModal('${goal.id}', 'remove')" class="bg-yellow-500 text-white w-full text-sm font-semibold py-1 px-3 rounded-lg">Retirar</button>
+                        </div>
+                    </div>
+                    `;
+                }).join('');
+                
+                lucide.createIcons();
             },
-
+            
             showGoalModal(id) {
-                const goal = id ? this.data.goals.find(g => g.id === id) : null;
+                 const goal = id ? this.data.goals.find(g => g.id === id) : null;
                 const isEditing = !!goal;
 
                 const modalHTML = `
-                     <form id="goal-form" class="space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-xl font-bold">${isEditing ? 'Editar' : 'Nova'} Meta</h3>
-                            <button type="button" class="close-modal-btn p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="x"></i></button>
-                        </div>
-                        <input type="hidden" name="id" value="${goal?.id || ''}">
-                        <input type="hidden" name="saved" value="${goal?.saved || 0}">
-                         <div>
-                            <label class="text-sm font-medium">Nome da Meta</label>
-                            <input type="text" name="name" maxlength="100" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${goal?.name || ''}" required>
-                        </div>
-                         <div>
-                            <label class="text-sm font-medium">Valor Alvo (R$)</label>
-                            <input type="text" name="target" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${this.formatCurrency(goal?.target)}" oninput="App.autoFormatCurrency(this)" required>
-                        </div>
-                        
-                        <div class="flex gap-2 pt-4">
-                            ${isEditing ? `<button type="button" onclick="App.deleteGoal('${goal.id}')" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg">Excluir Meta</button>` : ''}
-                            <button type="submit" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg flex-1">Salvar</button>
-                        </div>
-                    </form>
+                <form id="goal-form" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                         <h3 class="text-xl font-bold">${isEditing ? 'Editar' : 'Nova'} Meta</h3>
+                         <button type="button" class="close-modal-btn p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="x"></i></button>
+                    </div>
+                    <input type="hidden" name="id" value="${goal?.id || ''}">
+                    <input type="hidden" name="saved" value="${goal?.saved || 0}">
+                    <div>
+                        <label class="text-sm font-medium">Nome da Meta</label>
+                        <input type="text" name="name" maxlength="100" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${goal?.name || ''}" required>
+                    </div>
+                     <div>
+                        <label class="text-sm font-medium">Valor Alvo (R$)</label>
+                        <input type="text" name="target" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${this.formatCurrency(goal?.target)}" oninput="App.autoFormatCurrency(this)" required>
+                    </div>
+
+                    <div class="flex gap-2 pt-4">
+                        ${isEditing ? `<button type="button" onclick="App.deleteGoal('${goal.id}')" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg">Excluir</button>` : ''}
+                        <button type="submit" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg flex-1">Salvar</button>
+                    </div>
+                </form>
                 `;
                 this.showModal(modalHTML);
                 
                 document.getElementById('goal-form').addEventListener('submit', (e) => {
-                    e.preventDefault();
+                     e.preventDefault();
                     const formData = new FormData(e.target);
                     const id = formData.get('id') || null;
                     const target = this.parseCurrency(formData.get('target'));
                     
                     if (target <= 0) {
-                        this.showToast('O valor alvo deve ser maior que zero', 'error');
-                        return;
+                         this.showToast('O valor alvo deve ser maior que zero', 'error');
+                         return;
                     }
                     
                     const newGoalData = {
-                         id: id || this.getNewId(),
-                         name: formData.get('name'),
-                         target: target,
-                         saved: parseFloat(formData.get('saved')) || 0,
+                        id: id || this.getNewId(),
+                        name: formData.get('name'),
+                        target: target,
+                        saved: parseFloat(formData.get('saved')) || 0,
                     };
+
+                    if(id) { // Edit
+                        const index = this.data.goals.findIndex(c => c.id === id);
+                        this.data.goals[index] = newGoalData;
+                    } else { // New
+                        this.data.goals.push(newGoalData);
+                    }
                     
-                    if(id) {
-                         const index = this.data.goals.findIndex(g => g.id === id);
-                         this.data.goals[index] = newGoalData;
-                     } else {
-                         this.data.goals.push(newGoalData);
-                     }
-                     this.saveData();
-                     this.showToast('Meta salva!', 'success');
-                     document.getElementById('modal').click();
+                    this.saveData();
+                    this.showToast('Meta salva!', 'success');
+                    document.getElementById('modal').click();
                 });
             },
             
             deleteGoal(id) {
                  if (confirm("Tem certeza que deseja excluir esta meta?")) {
-                    this.data.goals = this.data.goals.filter(g => g.id !== id);
+                    this.data.goals = this.data.goals.filter(c => c.id !== id);
                     this.saveData();
-                    this.showToast('Meta excluída', 'success');
+                    this.showToast('Meta excluída!', 'success');
                     document.getElementById('modal').click();
                 }
             },
             
-            showGoalDepositModal(id, type = 'add') {
-                 const goal = this.data.goals.find(g => g.id === id);
-                 if (!goal) return;
-                 
-                 const title = type === 'add' ? 'Adicionar Valor' : 'Retirar Valor';
-                 const btnText = type === 'add' ? 'Adicionar' : 'Retirar';
-                 const btnClass = type === 'add' ? 'bg-green-500' : 'bg-yellow-500';
-                 
-                 const modalHTML = `
-                     <form id="goal-deposit-form" class="space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-xl font-bold">${title}</h3>
-                            <button type="button" class="close-modal-btn p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="x"></i></button>
-                        </div>
-                        <p>Meta: <strong>${goal.name}</strong></p>
-                        <p>Guardado: <strong>${this.formatCurrency(goal.saved)}</strong></p>
-                        <div>
-                            <label class="text-sm font-medium">Valor (R$)</label>
-                            <input type="text" name="amount" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" oninput="App.autoFormatCurrency(this)" required>
-                        </div>
-                        <button type="submit" class="${btnClass} text-white font-semibold py-2 px-4 rounded-lg w-full">${btnText}</button>
-                    </form>
-                 `;
-                 this.showModal(modalHTML);
-                 
-                 document.getElementById('goal-deposit-form').addEventListener('submit', (e) => {
-                      e.preventDefault();
-                      const formData = new FormData(e.target);
-                      const amount = this.parseCurrency(formData.get('amount'));
-                      
-                      if (amount <= 0) {
-                           this.showToast('O valor deve ser maior que zero', 'error');
-                           return;
-                      }
-                      
-                      if(type === 'add') {
-                          goal.saved += amount;
-                      } else {
-                           goal.saved -= amount;
-                           if (goal.saved < 0) goal.saved = 0;
-                      }
-                      
-                      this.saveData();
-                      this.showToast('Valor atualizado na meta', 'success');
-                      document.getElementById('modal').click();
-                 });
+            showGoalDepositModal(goalId, type) {
+                const goal = this.data.goals.find(g => g.id === goalId);
+                if (!goal) return;
+                
+                const isAdd = type === 'add';
+                const title = isAdd ? 'Adicionar à Meta' : 'Retirar da Meta';
+                const btnText = isAdd ? 'Adicionar' : 'Retirar';
+                const btnColor = isAdd ? 'bg-green-500' : 'bg-yellow-500';
+
+                const modalHTML = `
+                 <form id="goal-deposit-form" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                         <h3 class="text-xl font-bold">${title}</h3>
+                         <button type="button" class="close-modal-btn p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="x"></i></button>
+                    </div>
+                    <p class="text-sm">Meta: <strong>${goal.name}</strong></p>
+                    <p class="text-sm">Salvo: <strong>${this.formatCurrency(goal.saved)}</strong></p>
+                    <input type="hidden" name="goalId" value="${goalId}">
+                    <input type="hidden" name="type" value="${type}">
+                    <div>
+                        <label class="text-sm font-medium">Valor (R$)</label>
+                        <input type="text" name="amount" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="" oninput="App.autoFormatCurrency(this)" required>
+                    </div>
+                    <div class="flex pt-4">
+                        <button type="submit" class="${btnColor} text-white font-semibold py-2 px-4 rounded-lg flex-1">${btnText}</button>
+                    </div>
+                </form>
+                `;
+                this.showModal(modalHTML);
+                
+                document.getElementById('goal-deposit-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    const amount = this.parseCurrency(formData.get('amount'));
+                    
+                    if (amount <= 0) {
+                         this.showToast('O valor deve ser maior que zero', 'error');
+                         return;
+                    }
+                    
+                    if(type === 'add') {
+                        goal.saved += amount;
+                    } else {
+                        goal.saved -= amount;
+                        if (goal.saved < 0) goal.saved = 0;
+                    }
+                    
+                    this.saveData();
+                    this.showToast('Valor atualizado na meta', 'success');
+                    document.getElementById('modal').click();
+                });
             },
 
             // =================================================================================
             // Seção: Configurações (Settings)
             // =================================================================================
+
             renderSettings() {
                 const expList = document.getElementById('expense-categories-list');
                 expList.innerHTML = this.data.categories.expense
                     .sort((a,b) => a.name.localeCompare(b.name))
                     .map(c => `
-                        <div class="flex justify-between items-center text-sm p-2 bg-slate-50 dark:bg-slate-900/50 rounded">
-                            <span>${c.name}</span>
-                            ${c.id === '0' ?
-                                '<i data-lucide="lock" class="w-4 h-4 text-slate-400" title="Categoria padrão"></i>' :
-                                `<button onclick="App.showCategoryModal('expense', '${c.id}')" class="p-1 text-slate-500 hover:text-blue-500">
-                                    <i data-lucide="pencil" class="w-4 h-4"></i>
-                                </button>`
-                             }
-                        </div>
-                    `).join('');
-
+                    <div class="flex justify-between items-center text-sm p-2 bg-slate-50 dark:bg-slate-900/50 rounded">
+                        <span class="flex items-center gap-2">
+                            ${c.color ? `<span class="w-4 h-4 rounded-full" style="background-color: ${c.color}"></span>` : ''}
+                            ${c.name}
+                        </span>
+                        ${c.id === '0' ? 
+                            '<i data-lucide="lock" class="w-4 h-4 text-slate-400" title="Categoria padrão"></i>' : 
+                            `<button onclick="App.showCategoryModal('expense', '${c.id}')" class="p-1 text-slate-500 hover:text-blue-500">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </button>` 
+                        }
+                    </div>
+                `).join('');
+                
                 const incList = document.getElementById('income-categories-list');
                 incList.innerHTML = this.data.categories.income
                     .sort((a,b) => a.name.localeCompare(b.name))
                     .map(c => `
-                        <div class="flex justify-between items-center text-sm p-2 bg-slate-50 dark:bg-slate-900/50 rounded">
-                            <span>${c.name}</span>
-                             ${c.id === '100' ?
-                                '<i data-lucide="lock" class="w-4 h-4 text-slate-400" title="Categoria padrão"></i>' : 
-                                `<button onclick="App.showCategoryModal('income', '${c.id}')" class="p-1 text-slate-500 hover:text-blue-500">
-                                   <i data-lucide="pencil" class="w-4 h-4"></i>
-                                </button>`
-                             }
-                        </div>
-                    `).join('');
-
-                const reportMonth = document.getElementById('report-month');
-                const reportYear = document.getElementById('report-year');
+                     <div class="flex justify-between items-center text-sm p-2 bg-slate-50 dark:bg-slate-900/50 rounded">
+                        <span>${c.name}</span>
+                         ${c.id === '100' ? 
+                            '<i data-lucide="lock" class="w-4 h-4 text-slate-400" title="Categoria padrão"></i>' : 
+                            `<button onclick="App.showCategoryModal('income', '${c.id}')" class="p-1 text-slate-500 hover:text-blue-500">
+                                <i data-lucide="pencil" class="w-4 h-4"></i>
+                            </button>` 
+                        }
+                    </div>
+                `).join('');
+                
+                // Popula selects de relatório
+                const reportMonthSelect = document.getElementById('report-month');
+                const reportYearSelect = document.getElementById('report-year');
                 const now = new Date();
                 const currentMonth = now.getMonth();
                 const currentYear = now.getFullYear();
 
-                if (reportMonth.options.length <= 1) {
+                if (reportMonthSelect.options.length <= 1) {
                     const months = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
-                    reportMonth.innerHTML = months.map((month, i) => `<option value="${i}" ${i === currentMonth ? 'selected' : ''}>${month}</option>`).join('');
-
-                    reportYear.innerHTML = '';
-                    for (let y = currentYear + 1; y >= 2020; y--) {
-                        reportYear.innerHTML += `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`;
-                    }
+                    reportMonthSelect.innerHTML = months.map((month, index) => `<option value="${index}" ${index === currentMonth ? 'selected' : ''}>${month}</option>`).join('');
+                    
+                     let yearsHTML = '';
+                     for (let y = currentYear + 1; y >= currentYear - 5; y--) {
+                        yearsHTML += `<option value="${y}" ${y === currentYear ? 'selected' : ''}>${y}</option>`;
+                     }
+                     reportYearSelect.innerHTML = yearsHTML;
                 }
                 
-                document.getElementById('report-output').classList.add('hidden');
-                document.getElementById('report-output').innerHTML = '';
-
                 lucide.createIcons();
             },
             
+            // ### MODIFICADO 3: Adiciona input de cor ao modal
             showCategoryModal(type, id) {
-                 const category = id ? this.getCategoryById(type, id) : null;
+                 const category = id ? this.data.categories[type].find(c => c.id === id) : null;
                  const isEditing = !!category;
-                 
-                 if(isEditing && (category.id === '100' || category.id === '0')) {
-                     this.showToast("Categorias padrão não podem ser editadas.", 'error');
-                     return;
-                 }
-                 
-                 const typeName = type === 'income' ? 'Receita' : 'Despesa';
 
                  const modalHTML = `
-                     <form id="category-form" class="space-y-4">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-xl font-bold">${isEditing ? 'Editar' : 'Nova'} Categoria</h3>
-                            <button type="button" class="close-modal-btn p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="x"></i></button>
-                        </div>
-                        <input type="hidden" name="id" value="${category?.id || ''}">
-                        <input type="hidden" name="type" value="${type}">
-                         <div>
-                            <label class="text-sm font-medium">Tipo</label>
-                            <input type="text" class="w-full mt-1 p-2 bg-slate-100 dark:bg-slate-700 rounded-md" value="${typeName}" disabled>
-                        </div>
-                         <div>
-                            <label class="text-sm font-medium">Nome da Categoria</label>
-                            <input type="text" name="name" maxlength="50" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${category?.name || ''}" required>
-                        </div>
-                        
-                        <div class="flex gap-2 pt-4">
-                            ${isEditing ? `<button type="button" onclick="App.deleteCategory('${type}', '${category.id}')" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg">Excluir</button>` : ''}
-                            <button type="submit" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg flex-1">Salvar</button>
-                        </div>
-                    </form>
-                 `;
-                 this.showModal(modalHTML);
-                 
-                 document.getElementById('category-form').addEventListener('submit', (e) => {
-                     e.preventDefault();
-                     const formData = new FormData(e.target);
-                     const id = formData.get('id') || null;
-                     const type = formData.get('type');
-                     const newCategoryData = {
-                         id: id || this.getNewId(),
-                         name: formData.get('name'),
-                     };
-                     
-                     if(id) {
-                         const index = this.data.categories[type].findIndex(c => c.id === id);
-                         this.data.categories[type][index] = newCategoryData;
-                     } else {
-                         this.data.categories[type].push(newCategoryData);
-                     }
-                     this.saveData();
-                     this.showToast('Categoria salva!', 'success');
-                     document.getElementById('modal').click();
-                 });
+                 <form id="category-form" class="space-y-4">
+                    <div class="flex items-center justify-between">
+                         <h3 class="text-xl font-bold">${isEditing ? 'Editar' : 'Nova'} Categoria</h3>
+                         <button type="button" class="close-modal-btn p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700"><i data-lucide="x"></i></button>
+                    </div>
+                    <input type="hidden" name="id" value="${category?.id || ''}">
+                    <input type="hidden" name="type" value="${type}">
+                    
+                    <div>
+                        <label class="text-sm font-medium">Nome</label>
+                        <input type="text" name="name" maxlength="100" class="w-full mt-1 p-2 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${category?.name || ''}" required>
+                    </div>
+                    
+                    ${type === 'expense' ? `
+                    <div>
+                        <label class="text-sm font-medium">Cor</label>
+                        <input type="color" name="color" class="w-full mt-1 p-1 h-10 bg-slate-50 dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-md" value="${category?.color || '#ef4444'}" required>
+                    </div>
+                    ` : ''}
+                    <div class="flex gap-2 pt-4">
+                        ${isEditing ? `<button type="button" onclick="App.deleteCategory('${type}', '${category.id}')" class="bg-red-500 text-white font-semibold py-2 px-4 rounded-lg">Excluir</button>` : ''}
+                        <button type="submit" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg flex-1">Salvar</button>
+                    </div>
+                </form>
+                `;
+                this.showModal(modalHTML);
+                
+                // ### MODIFICADO 4: Atualiza lógica de salvamento
+                document.getElementById('category-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.target);
+                    const id = formData.get('id') || null;
+                    const type = formData.get('type');
+                    
+                    const newCategoryData = {
+                        id: id || this.getNewId(),
+                        name: formData.get('name'),
+                    };
+                    
+                    // Adiciona a cor se for categoria de despesa
+                    if (type === 'expense') {
+                        newCategoryData.color = formData.get('color');
+                    }
+
+                    if(id) { // Edit
+                        const index = this.data.categories[type].findIndex(c => c.id === id);
+                        this.data.categories[type][index] = newCategoryData;
+                    } else { // New
+                        this.data.categories[type].push(newCategoryData);
+                    }
+                    
+                    this.saveData();
+                    this.showToast('Categoria salva!', 'success');
+                    document.getElementById('modal').click();
+                });
             },
             
-             deleteCategory(type, id) {
+            deleteCategory(type, id) {
                  if(id === '100' || id === '0') {
                      this.showToast("Categorias padrão não podem ser excluídas.", 'error');
                      return;
@@ -1869,35 +2037,36 @@
                  if (isUsed) {
                     this.showToast("Não é possível excluir. Categoria em uso. Mude os lançamentos de categoria primeiro.", 'error');
                     return;
-                 }
-
+                }
+                 
                  if (confirm("Tem certeza que deseja excluir esta categoria?")) {
                     this.data.categories[type] = this.data.categories[type].filter(c => c.id !== id);
                     this.saveData();
-                    this.showToast('Categoria excluída', 'success');
+                    this.showToast('Categoria excluída!', 'success');
                     document.getElementById('modal').click();
-                 }
+                }
             },
             
             // =================================================================================
-            // Seção: Backup e Restore
+            // Seção: Import/Export e Relatórios
             // =================================================================================
+
             exportData() {
                 try {
                     const dataStr = JSON.stringify(this.data);
                     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
                     
-                    const exportFileDefaultName = `fin-app-backup-${new Date().toISOString().split('T')[0]}.json`;
-                
-                    const linkElement = document.createElement('a');
-                    linkElement.setAttribute('href', dataUri);
-                    linkElement.setAttribute('download', exportFileDefaultName);
-                    linkElement.click();
-                    linkElement.remove();
+                    const a = document.createElement('a');
+                    a.href = dataUri;
+                    a.download = `fin-backup-${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
                     this.showToast('Backup exportado com sucesso!', 'success');
-                } catch (e) {
-                    this.showToast('Erro ao exportar dados', 'error');
-                    console.error("Erro ao exportar:", e);
+                } catch(e) {
+                     this.showToast('Erro ao exportar dados', 'error');
+                     console.error(e);
                 }
             },
             
@@ -1905,190 +2074,209 @@
                 const file = event.target.files[0];
                 if (!file) return;
 
+                if (!confirm("IMPORTANTE: A importação irá SOBRESCREVER todos os dados atuais. Deseja continuar?")) {
+                    event.target.value = null; // Limpa o input
+                    return;
+                }
+
                 const reader = new FileReader();
                 reader.onload = (e) => {
                     try {
                         const importedData = JSON.parse(e.target.result);
                         
-                        if (!importedData.transactions || !importedData.categories || !importedData.cards) {
-                            this.showToast('Arquivo de backup inválido ou corrompido', 'error');
-                            return;
-                        }
-
-                        if (confirm('⚠️ ATENÇÃO! Importar dados irá SUBSTITUIR todos os dados atuais. Esta ação não pode ser desfeita. Tem certeza?')) {
+                        // Validação básica
+                        if (importedData.transactions && importedData.categories) {
                             this.data = importedData;
-                            this.loadData(); // Re-processa e valida os dados importados
-                            
-                            this.saveData(false);
-                            this.showToast('✓ Dados importados com sucesso. Recarregando app...', 'success');
-                            
-                            setTimeout(() => location.reload(), 1500);
+                            this.saveData(); // Salva e atualiza
+                            this.showToast('Dados importados com sucesso!', 'success');
+                             event.target.value = null; // Limpa o input
+                        } else {
+                            throw new Error('Arquivo JSON inválido ou incompleto.');
                         }
-                    } catch (error) {
-                        this.showToast('Erro ao ler o arquivo de backup', 'error');
-                        console.error('Erro ao importar:', error);
+                    } catch (err) {
+                        this.showToast(`Erro ao importar: ${err.message}`, 'error');
+                         event.target.value = null; // Limpa o input
                     }
                 };
+                reader.onerror = () => {
+                     this.showToast('Erro ao ler o arquivo.', 'error');
+                      event.target.value = null; // Limpa o input
+                };
                 reader.readAsText(file);
-                event.target.value = '';
             },
             
-            // =================================================================================
-            // Seção: Relatórios (Reports)
-            // =================================================================================
-            renderReport() {
-                this.showLoading(true);
-                
-                const pdfContentWrapper = document.getElementById('report-output');
-                pdfContentWrapper.classList.remove('hidden');
-                pdfContentWrapper.style.backgroundColor = 'white';
-                pdfContentWrapper.style.color = 'black';
-                
-                const month = parseInt(document.getElementById('report-month').value);
-                const year = parseInt(document.getElementById('report-year').value);
-                const monthName = document.getElementById('report-month').options[document.getElementById('report-month').selectedIndex].text;
-                const mealVoucherCategoryId = '100';
-                
-                const reportTransactions = this.data.transactions.filter(t => {
-                    const date = new Date(t.date);
+             renderReport() {
+                 this.showLoading(true);
+                 const outputEl = document.getElementById('report-output');
+                 
+                 const month = parseInt(document.getElementById('report-month').value);
+                 const year = parseInt(document.getElementById('report-year').value);
+                 const monthName = document.getElementById('report-month').options[document.getElementById('report-month').selectedIndex].text;
+                 
+                 const mealVoucherCategoryId = '100';
+
+                 const reportTransactions = this.data.transactions.filter(t => {
+                     const date = new Date(t.date);
                      if (isNaN(date.getTime())) return false; 
-                    return date.getUTCMonth() === month && date.getUTCFullYear() === year;
-                });
-                
-                const totalIncome = reportTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-                const totalVRIncome = reportTransactions.filter(t => t.type === 'income' && t.categoryId === mealVoucherCategoryId).reduce((sum, t) => sum + t.amount, 0);
-                const totalOtherIncome = totalIncome - totalVRIncome;
-                
-                const totalExpense = reportTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
-                const totalVRExpense = reportTransactions.filter(t => t.type === 'expense' && t.paymentMethod === 'meal_voucher').reduce((sum, t) => sum + t.amount, 0);
-                const totalOtherExpense = totalExpense - totalVRExpense;
-                
-                const finalBalance = totalOtherIncome - totalOtherExpense;
-                
-                const getCategorySummary = (type) => {
-                    const categories = (type === 'income' ? this.data.categories.income : this.data.categories.expense);
-                    let summary = reportTransactions
-                        .filter(t => t.type === type)
-                        .reduce((acc, t) => {
-                            if (t.categoryId === mealVoucherCategoryId || t.paymentMethod === 'meal_voucher') return acc;
-                            
-                            const category = categories.find(c => c.id === t.categoryId)?.name || 'Sem Categoria';
-                            acc[category] = (acc[category] || 0) + t.amount;
-                            return acc;
-                        }, {});
-                    
+                     return date.getUTCMonth() === month && date.getUTCFullYear() === year;
+                 });
+
+                 // --- Cálculos ---
+                 const totalIncome = reportTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+                 const totalVRIncome = reportTransactions.filter(t => t.type === 'income' && t.categoryId === mealVoucherCategoryId).reduce((sum, t) => sum + t.amount, 0);
+                 const totalOtherIncome = totalIncome - totalVRIncome;
+                 
+                 const totalExpense = reportTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+                 const totalVRExpense = reportTransactions.filter(t => t.type === 'expense' && t.paymentMethod === 'meal_voucher').reduce((sum, t) => sum + t.amount, 0);
+                 const totalOtherExpense = totalExpense - totalVRExpense;
+                 
+                 const finalBalance = totalOtherIncome - totalOtherExpense;
+                 
+                 const getCategorySummary = (type) => {
+                     const categories = (type === 'income' ? this.data.categories.income : this.data.categories.expense);
+                     
+                     const summary = reportTransactions
+                         .filter(t => t.type === type)
+                         .filter(t => { // Exclui VR dos relatórios de categoria
+                             if (type === 'income' && t.categoryId === mealVoucherCategoryId) return false;
+                             if (type === 'expense' && t.paymentMethod === 'meal_voucher') return false;
+                             return true;
+                         })
+                         .reduce((acc, t) => {
+                             const category = this.getCategoryById(type, t.categoryId);
+                             const name = category ? category.name : 'Sem Categoria';
+                             acc[name] = (acc[name] || 0) + t.amount;
+                             return acc;
+                         }, {});
+                         
                      return Object.entries(summary)
-                         .sort(([,a], [,b]) => b - a)
+                         .sort(([, a], [, b]) => b - a) // Ordena por valor (maior primeiro)
                          .map(([name, amount]) => `
-                            <div class="flex justify-between text-sm py-1 border-b" style="border-color: #e2e8f0;">
-                                <span>${name}</span>
-                                <span class="font-medium">${this.formatCurrency(amount)}</span>
-                            </div>
-                         `).join('');
-                };
-                
+                             <div class="flex justify-between text-sm py-1 border-b dark:border-slate-700">
+                                 <span class="text-slate-600 dark:text-slate-300">${name}</span>
+                                 <span class="font-medium">${this.formatCurrency(amount)}</span>
+                             </div>
+                         `).join('') || null;
+                 };
+
                 const incomeSummary = getCategorySummary('income');
                 const expenseSummary = getCategorySummary('expense');
 
-                pdfContentWrapper.innerHTML = `
-                    <div id="pdf-content" class="p-4">
-                        <h4 class="text-xl font-bold text-center mb-4">Relatório Mensal</h4>
-                        <p class="text-lg font-semibold text-center mb-6">${monthName} de ${year}</p>
-                        
-                        <div class="space-y-6">
-                            <section class="border rounded-lg p-4" style="border-color: #e2e8f0;">
-                                <h5 class="font-bold text-lg mb-3">Resumo Geral (Contas)</h5>
-                                <div class="space-y-2">
-                                    <div class="flex justify-between text-base py-1 border-b" style="border-color: #e2e8f0;">
-                                        <span>Receitas (Outras)</span>
-                                        <span class="font-bold" style="color: #16a34a;">${this.formatCurrency(totalOtherIncome)}</span>
-                                    </div>
-                                    <div class="flex justify-between text-base py-1 border-b" style="border-color: #e2e8f0;">
-                                        <span>Despesas (Outras)</span>
-                                        <span class="font-bold" style="color: #dc2626;">${this.formatCurrency(totalOtherExpense)}</span>
-                                    </div>
-                                    <div class="flex justify-between text-lg py-1">
-                                        <span class="font-bold">Saldo Final (Contas)</span>
-                                        <span class="font-bold" style="color: ${finalBalance >= 0 ? '#2563eb' : '#dc2626'};">${this.formatCurrency(finalBalance)}</span>
-                                    </div>
-                                </div>
-                            </section>
-                            
-                            <section class="border rounded-lg p-4" style="border-color: #e2e8f0;">
-                                <h5 class="font-bold text-lg mb-3">Resumo (Vale Refeição)</h5>
-                                <div class="space-y-2">
-                                    <div class="flex justify-between text-base py-1 border-b" style="border-color: #e2e8f0;">
-                                        <span>Receitas (VR)</span>
-                                        <span class="font-bold" style="color: #16a34a;">${this.formatCurrency(totalVRIncome)}</span>
-                                    </div>
-                                    <div class="flex justify-between text-base py-1 border-b" style="border-color: #e2e8f0;">
-                                        <span>Despesas (VR)</span>
-                                        <span class="font-bold" style="color: #dc2626;">${this.formatCurrency(totalVRExpense)}</span>
-                                    </div>
-                                    <div class="flex justify-between text-lg py-1">
-                                        <span class="font-bold">Saldo (VR)</span>
-                                        <span class="font-bold" style="color: #d97706;">${this.formatCurrency(totalVRIncome - totalVRExpense)}</span>
-                                    </div>
-                                </div>
-                            </section>
-
-                            <section class="border rounded-lg p-4" style="border-color: #e2e8f0;">
-                                <h5 class="font-bold text-lg mb-3">Despesas por Categoria (Exclui VR)</h5>
-                                ${expenseSummary || '<p class="text-sm">Nenhuma despesa registrada.</p>'}
-                            </section>
-                            
-                             <section class="border rounded-lg p-4" style="border-color: #e2e8f0;">
-                                <h5 class="font-bold text-lg mb-3">Receitas por Categoria (Exclui VR)</h5>
-                                ${incomeSummary || '<p class="text-sm">Nenhuma receita registrada.</p>'}
-                            </section>
-                        </div>
-                    </div>
-                    
-                    <button id="download-pdf-btn" class="mt-6 bg-green-600 text-white font-semibold py-2 px-4 rounded-lg w-full">Baixar PDF</button>
-                `;
-                
+                 // --- HTML ---
+                 const reportHTML = `
+                 <div id="pdf-content-wrapper" class="p-4 space-y-6">
+                     <div class="flex justify-between items-center">
+                         <div>
+                             <h4 class="text-2xl font-bold">Relatório Mensal</h4>
+                             <p class="text-lg font-semibold text-blue-600 dark:text-blue-400">${monthName} de ${year}</p>
+                         </div>
+                         <button id="download-pdf-btn" class="bg-red-600 text-white font-semibold py-2 px-4 rounded-lg flex items-center gap-2">
+                             <i data-lucide="file-down" class="w-4 h-4"></i> PDF
+                         </button>
+                     </div>
+                     
+                     <section class="border rounded-lg p-4" style="border-color: #e2e8f0;">
+                         <h5 class="font-bold text-lg mb-3">Resumo (Contas)</h5>
+                         <div class="space-y-2">
+                             <div class="flex justify-between items-center text-lg">
+                                 <span class="text-green-600 dark:text-green-400">Receitas (Outras):</span>
+                                 <span class="font-bold text-green-600 dark:text-green-400">${this.formatCurrency(totalOtherIncome)}</span>
+                             </div>
+                             <div class="flex justify-between items-center text-lg">
+                                 <span class="text-red-600 dark:text-red-400">Despesas (Contas):</span>
+                                 <span class="font-bold text-red-600 dark:text-red-400">-${this.formatCurrency(totalOtherExpense)}</span>
+                             </div>
+                             <div class="flex justify-between items-center text-xl pt-2 border-t mt-2">
+                                 <span class="font-bold">Saldo do Mês:</span>
+                                 <span class="font-bold ${finalBalance >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}">${this.formatCurrency(finalBalance)}</span>
+                             </div>
+                         </div>
+                     </section>
+                     
+                      <section class="border rounded-lg p-4" style="border-color: #e2e8f0;">
+                         <h5 class="font-bold text-lg mb-3">Resumo (Vale Refeição)</h5>
+                         <div class="space-y-2">
+                             <div class="flex justify-between items-center text-md">
+                                 <span class="text-green-600 dark:text-green-400">Crédito VR:</span>
+                                 <span class="font-medium text-green-600 dark:text-green-400">${this.formatCurrency(totalVRIncome)}</span>
+                             </div>
+                             <div class="flex justify-between items-center text-md">
+                                 <span class="text-red-600 dark:text-red-400">Gasto VR:</span>
+                                 <span class="font-medium text-red-600 dark:text-red-400">-${this.formatCurrency(totalVRExpense)}</span>
+                             </div>
+                             <div class="flex justify-between items-center text-lg pt-2 border-t mt-2">
+                                 <span class="font-bold text-yellow-700 dark:text-yellow-500">Saldo VR (Mês):</span>
+                                 <span class="font-bold text-yellow-700 dark:text-yellow-500">${this.formatCurrency(totalVRIncome - totalVRExpense)}</span>
+                             </div>
+                         </div>
+                     </section>
+                     
+                     <section class="border rounded-lg p-4" style="border-color: #e2e8f0;">
+                         <h5 class="font-bold text-lg mb-3">Despesas por Categoria (Exclui VR)</h5>
+                         ${expenseSummary || '<p class="text-sm">Nenhuma despesa registrada.</p>'}
+                     </section>
+                     
+                     <section class="border rounded-lg p-4" style="border-color: #e2e8f0;">
+                         <h5 class="font-bold text-lg mb-3">Receitas por Categoria (Exclui VR)</h5>
+                         ${incomeSummary || '<p class="text-sm">Nenhuma receita registrada.</p>'}
+                     </section>
+                 </div>
+                 `;
+                 
+                 outputEl.innerHTML = reportHTML;
+                 outputEl.classList.remove('hidden');
+                 lucide.createIcons();
+                 
                 document.getElementById('download-pdf-btn').addEventListener('click', () => {
                     this.showLoading(true);
                     const { jsPDF } = window.jspdf;
-                    const pdfContent = document.getElementById('pdf-content');
+                    const pdfContentWrapper = document.getElementById('pdf-content-wrapper');
                     
-                    html2canvas(pdfContent, { 
-                        scale: 2,
-                        backgroundColor: '#ffffff'
-                    }).then(canvas => { 
+                    // Força fundo branco e texto preto para o PDF
+                    pdfContentWrapper.style.backgroundColor = 'white';
+                    pdfContentWrapper.style.color = 'black';
+                    
+                    html2canvas(pdfContentWrapper, { scale: 2 }).then(canvas => {
                         const imgData = canvas.toDataURL('image/png');
-                        const pdf = new jsPDF('p', 'mm', 'a4'); 
+                        const pdf = new jsPDF('p', 'mm', 'a4');
                         const pdfWidth = pdf.internal.pageSize.getWidth();
-                        const imgProps= pdf.getImageProperties(imgData);
-                        const imgWidth = pdfWidth - 20;
+                        const pdfHeight = pdf.internal.pageSize.getHeight();
+                        
+                        const imgProps = pdf.getImageProperties(imgData);
+                        const imgWidth = pdfWidth - 20; // margem 10mm
                         const imgHeight = (imgProps.height * imgWidth) / imgProps.width;
+                        
                         let heightLeft = imgHeight;
                         let position = 10;
 
                         pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
-                        heightLeft -= (pdf.internal.pageSize.getHeight() - 20); 
+                        heightLeft -= (pdf.internal.pageSize.getHeight() - 20); // subtrai altura da pagina com margem
 
                         while (heightLeft > 0) {
-                            position = heightLeft - imgHeight + 10; 
+                            position = heightLeft - imgHeight + 10; // recalcula posição negativa
                             pdf.addPage();
                             pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
                             heightLeft -= (pdf.internal.pageSize.getHeight() - 20);
                         }
+                        
                         pdf.save(`relatorio-fin-${month+1}-${year}.pdf`);
                         this.showLoading(false);
                         this.showToast('Relatório PDF gerado!', 'success');
                         
+                         // Restaura estilos
                          pdfContentWrapper.style.backgroundColor = '';
                          pdfContentWrapper.style.color = '';
+                         
                     }).catch(err => {
                          this.showLoading(false);
                          this.showToast('Erro ao gerar PDF', 'error');
                          console.error("Erro no html2canvas:", err);
                     });
                 });
-                
-                this.showLoading(false);
+                 
+                 this.showLoading(false);
             },
+            
         };
 
         // Inicia a aplicação
